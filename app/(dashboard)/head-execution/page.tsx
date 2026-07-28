@@ -6,7 +6,6 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { getTodayDateString, formatDateID } from "@/lib/utils";
 import { createClient } from "@supabase/supabase-js";
 
-// Inisialisasi Supabase Client untuk Realtime Subscription
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -17,12 +16,14 @@ export default function HeadExecutionPage() {
   const [filteredData, setFilteredData] = useState<ExecutionRowData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [appName, setAppName] = useState<string>("Bank Daily Report");
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
   // State Filter
   const [selectedSentra, setSelectedSentra] = useState<string>("ALL");
   const [selectedMuh, setSelectedMuh] = useState<string>("ALL");
 
   useEffect(() => {
+    setIsMounted(true);
     const savedName = localStorage.getItem("APP_BANK_NAME");
     if (savedName) setAppName(savedName);
   }, []);
@@ -69,11 +70,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // =========================================================================
-    // DUAL-ENGINE REALTIME SYNC (WEBSOCKET CHANNEL + 5s POLLING FALLSAFE)
-    // =========================================================================
-    
-    // 1. Supabase Realtime Listener (WebSocket)
+    // DUAL-ENGINE REALTIME SYNC
     const channel = supabase
       .channel("realtime_head_executions_channel")
       .on(
@@ -85,7 +82,6 @@ export default function HeadExecutionPage() {
       )
       .subscribe();
 
-    // 2. High-Frequency Polling Fallback (Tiap 5 Detik)
     const pollInterval = setInterval(() => {
       fetchConsolidatedExecutions();
     }, 5000);
@@ -118,7 +114,6 @@ export default function HeadExecutionPage() {
   const formatRupiah = (val: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val);
 
-  // GENERATOR SPREADSHEET EXCEL NATIVE BERKOLOM RAPIH
   const handleExportExcel = () => {
     if (filteredData.length === 0) {
       alert("Tidak ada data eksekusi untuk diexport.");
@@ -211,6 +206,15 @@ export default function HeadExecutionPage() {
   const handlePrint = () => {
     window.print();
   };
+
+  if (!isMounted) {
+    return (
+      <div className="w-full h-64 flex items-center justify-center text-xs text-slate-400">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent mr-2" />
+        Memuat konsolidasi rekap data eksekusi area...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-5 pb-8">

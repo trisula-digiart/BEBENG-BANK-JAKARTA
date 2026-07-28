@@ -11,47 +11,60 @@ export default function UnitExecutionPage() {
     sentra_mikro: string;
     muh_name: string;
   }>({
-    id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
-    kcp_name: "KCP Walikota",
-    sentra_mikro: "Sentra Mikro Jkt Timur",
-    muh_name: "Budi Santoso",
+    id: "",
+    kcp_name: "KCP Unit",
+    sentra_mikro: "Sentra Mikro",
+    muh_name: "Petugas Unit",
   });
 
   const [reportDate, setReportDate] = useState<string>(getTodayDateString());
   const [isLocked, setIsLocked] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
   useEffect(() => {
-    // 1. Ambil data sesi user dari LocalStorage
+    setIsMounted(true);
+
+    // 1. Ambil data sesi user spesifik dari LocalStorage
     const savedUser = localStorage.getItem("app_user");
-    let userUnitName = "KCP Walikota";
+    let userUnitName = "";
+    let userSentra = "";
 
     if (savedUser) {
       try {
         const u = JSON.parse(savedUser);
         if (u.unit_name) userUnitName = u.unit_name;
+        if (u.sentra_mikro) userSentra = u.sentra_mikro;
       } catch (e) {
         console.error("Failed parsing app_user");
       }
     }
 
-    // 2. Fetch data unit UUID dari API units
+    // 2. Fetch data unit UUID secara presisi dari API units
     fetch("/api/units")
       .then((res) => res.json())
       .then((result) => {
-        if (result.success && Array.isArray(result.data)) {
+        if (result.data && Array.isArray(result.data)) {
+          // Cari unit yang benar-benar cocok dengan akun yang sedang login
           const matchedUnit = result.data.find(
             (unit: any) =>
-              unit.kcp_name?.toLowerCase() === userUnitName.toLowerCase() ||
-              unit.sentra_mikro?.toLowerCase().includes("walikota")
-          ) || result.data[0];
+              (userUnitName && unit.kcp_name?.toLowerCase().trim() === userUnitName.toLowerCase().trim()) ||
+              (userSentra && unit.sentra_mikro?.toLowerCase().trim() === userSentra.toLowerCase().trim())
+          );
 
           if (matchedUnit) {
             setUnitInfo({
-              id: matchedUnit.id || "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
-              kcp_name: matchedUnit.kcp_name || "KCP Walikota",
-              sentra_mikro: matchedUnit.sentra_mikro || "Sentra Mikro Jkt Timur",
-              muh_name: matchedUnit.muh_name || "Budi Santoso",
+              id: matchedUnit.id,
+              kcp_name: matchedUnit.kcp_name || userUnitName || "KCP Unit",
+              sentra_mikro: matchedUnit.sentra_mikro || userSentra || "Sentra Mikro",
+              muh_name: matchedUnit.muh_name || "Petugas Unit",
+            });
+          } else if (userUnitName) {
+            // Jika unit baru belum ada di master units, gunakan info dari session user
+            setUnitInfo({
+              id: `user-unit-${userUnitName.replace(/\s+/g, "-").toLowerCase()}`,
+              kcp_name: userUnitName,
+              sentra_mikro: userSentra || "Sentra Mikro",
+              muh_name: "Petugas Unit",
             });
           }
         }
@@ -68,6 +81,15 @@ export default function UnitExecutionPage() {
       })
       .catch(() => {});
   }, [reportDate]);
+
+  if (!isMounted) {
+    return (
+      <div className="w-full h-64 flex items-center justify-center text-xs text-slate-400">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent mr-2" />
+        Memuat modul eksekusi unit...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-6 pb-8">
@@ -96,7 +118,7 @@ export default function UnitExecutionPage() {
         </div>
       </div>
 
-      {/* Execution Grid Component */}
+      {/* Execution Grid Component dengan Unit ID Ter-Isolasi */}
       <ExecutionGrid
         unitId={unitInfo.id}
         sentraName={unitInfo.sentra_mikro}
