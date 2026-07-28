@@ -29,7 +29,7 @@ export default function HeadExecutionPage() {
 
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
-      const res = await fetch(`/api/executions?date=${selectedDate}`);
+      const res = await fetch(`/api/executions?date=${selectedDate}`, { cache: "no-store" });
       const result = await res.json();
 
       if (res.ok && Array.isArray(result.data)) {
@@ -70,22 +70,29 @@ export default function HeadExecutionPage() {
     fetchConsolidatedExecutions();
 
     // =========================================================================
-    // SUPABASE REALTIME LISTENER (LIVE SYNC TANPA REFRES/F5)
+    // DUAL-ENGINE REALTIME SYNC (WEBSOCKET CHANNEL + 5s POLLING FALLSAFE)
     // =========================================================================
+    
+    // 1. Supabase Realtime Listener (WebSocket)
     const channel = supabase
-      .channel("realtime_head_executions")
+      .channel("realtime_head_executions_channel")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "executions" },
         () => {
-          // Begitu ada transaksi baru/update dari unit mana pun, tarik data baru secara live
           fetchConsolidatedExecutions();
         }
       )
       .subscribe();
 
+    // 2. High-Frequency Polling Fallback (Tiap 5 Detik)
+    const pollInterval = setInterval(() => {
+      fetchConsolidatedExecutions();
+    }, 5000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [fetchConsolidatedExecutions]);
 
@@ -213,7 +220,7 @@ export default function HeadExecutionPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-mono text-rose-400 mb-1">
-              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span> • <span className="text-emerald-400 animate-pulse">⚡ LIVE REALTIME SYNC</span>
+              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span> • <span className="text-emerald-400 animate-pulse">⚡ LIVE REALTIME ACTIVE</span>
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-100">
               Rekap Data Eksekusi Seluruh Area
