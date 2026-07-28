@@ -27,15 +27,18 @@ export interface ExecutionRowData {
   keterangan: string;
 }
 
-// Backward-compatibility alias jika ada modul lain yang memakai nama ExecutionRow
+// Backward-compatibility alias
 export type ExecutionRow = ExecutionRowData;
 
-interface ExecutionGridProps {
-  unitId: string;
-  sentraName: string;
-  muhName: string;
+export interface ExecutionGridProps {
+  unitId?: string;
+  sentraName?: string;
+  muhName?: string;
   reportDate?: string;
   isLocked?: boolean;
+  rowData?: ExecutionRowData[];
+  onSaveRow?: (row: ExecutionRowData) => Promise<void> | void;
+  readOnly?: boolean;
 }
 
 export function ExecutionGrid({
@@ -44,10 +47,17 @@ export function ExecutionGrid({
   muhName,
   reportDate = getTodayDateString(),
   isLocked = false,
+  rowData,
+  onSaveRow,
+  readOnly = false,
 }: ExecutionGridProps) {
-  const [rows, setRows] = useState<ExecutionRowData[]>([]);
+  const [internalRows, setInternalRows] = useState<ExecutionRowData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saveStatus, setSaveStatus] = useState<string>("");
+
+  // Gunakan data dari props jika disuplai (Head Execution), jika tidak gunakan internal state
+  const rows = rowData || internalRows;
+  const isReadOnly = isLocked || readOnly;
 
   // Safety Fallback UUID jika unitId dari parent belum terisi
   const activeUnitId =
@@ -56,25 +66,29 @@ export function ExecutionGrid({
       : "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
   const fetchExecutions = useCallback(async () => {
+    if (rowData) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(`/api/executions?unit_id=${activeUnitId}&date=${reportDate}`);
       const result = await res.json();
       if (res.ok && Array.isArray(result.data)) {
-        setRows(result.data);
+        setInternalRows(result.data);
       }
     } catch (err) {
       console.error("Failed to fetch execution rows:", err);
     } finally {
       setLoading(false);
     }
-  }, [activeUnitId, reportDate]);
+  }, [activeUnitId, reportDate, rowData]);
 
   useEffect(() => {
     fetchExecutions();
   }, [fetchExecutions]);
 
-  // Tambah Baris Baru (SELALU BISA DIKLIK KAPAN SAJA)
+  // Tambah Baris Baru
   const handleAddRow = () => {
     const nextNoUrut = rows.length + 1;
     const newRow: ExecutionRowData = {
@@ -99,15 +113,22 @@ export function ExecutionGrid({
       keterangan: "COLLECT DATA",
     };
 
-    setRows((prev) => [...prev, newRow]);
+    if (!rowData) {
+      setInternalRows((prev) => [...prev, newRow]);
+    }
   };
 
   // Handle Perubahan Sel & Auto Save
   const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
     const updatedRows = [...rows];
     updatedRows[index] = { ...updatedRows[index], [field]: value, no_urut: index + 1 };
-    setRows(updatedRows);
-    autoSaveRow(updatedRows[index], index);
+    
+    if (!rowData) {
+      setInternalRows(updatedRows);
+      autoSaveRow(updatedRows[index], index);
+    } else if (onSaveRow) {
+      onSaveRow(updatedRows[index]);
+    }
   };
 
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
@@ -128,7 +149,7 @@ export function ExecutionGrid({
       const result = await res.json();
 
       if (res.ok && result.data) {
-        setRows((prev) => {
+        setInternalRows((prev) => {
           const newRows = [...prev];
           newRows[rowIndex] = { ...newRows[rowIndex], id: result.data.id, no_urut: result.data.no_urut };
           return newRows;
@@ -153,7 +174,9 @@ export function ExecutionGrid({
           console.error("Delete row failed", e);
         }
       }
-      setRows((prev) => prev.filter((_, i) => i !== index));
+      if (!rowData) {
+        setInternalRows((prev) => prev.filter((_, i) => i !== index));
+      }
     }
   };
 
@@ -188,8 +211,8 @@ export function ExecutionGrid({
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex items-center justify-between">
           <div>
             <span className="text-[10px] font-mono text-slate-400 uppercase block">STATUS LAPORAN</span>
-            <span className={`text-xs font-bold block mt-0.5 ${isLocked ? "text-rose-400" : "text-emerald-400"}`}>
-              {isLocked ? "🔒 TERKUNCI (READ ONLY)" : "TERBUKA"}
+            <span className={`text-xs font-bold block mt-0.5 ${isReadOnly ? "text-rose-400" : "text-emerald-400"}`}>
+              {isReadOnly ? "🔒 TERKUNCI (READ ONLY)" : "TERBUKA"}
             </span>
           </div>
           {saveStatus && (
@@ -206,7 +229,7 @@ export function ExecutionGrid({
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-2xl">
         <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-3">
-            {!isLocked && (
+            {!isReadOnly && (
               <button
                 onClick={handleAddRow}
                 className="px-4 py-2 bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-rose-600/30 transition-all cursor-pointer flex items-center gap-2 active:scale-95"
@@ -243,7 +266,7 @@ export function ExecutionGrid({
                 <th className="p-2 border-r border-slate-800 text-center">JAKONE MOBILE</th>
                 <th className="p-2 border-r border-slate-800 text-center">EDC</th>
                 <th className="p-2 border-r border-slate-800 min-w-[130px]">KETERANGAN</th>
-                {!isLocked && <th className="p-2 text-center w-10">AKSI</th>}
+                {!isReadOnly && <th className="p-2 text-center w-10">AKSI</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans text-slate-200 text-xs">
@@ -256,21 +279,21 @@ export function ExecutionGrid({
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={19} className="text-center py-8 text-slate-500">
-                    Belum ada data eksekusi hari ini. Klik "+ Tambah Baris Eksekusi" di atas.
+                    Belum ada data eksekusi hari ini.
                   </td>
                 </tr>
               ) : (
                 rows.map((row, idx) => (
                   <tr key={row.id || idx} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-2 border-r border-slate-800 font-mono text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{sentraName || "Sentra Mikro Jkt Timur"}</td>
-                    <td className="p-2 border-r border-slate-800 text-slate-300">{muhName || "Budi Santoso"}</td>
+                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "Sentra Mikro Jkt Timur"}</td>
+                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "Budi Santoso"}</td>
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="text"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.nama_sm}
                         onChange={(e) => handleCellChange(idx, "nama_sm", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-100 focus:outline-none focus:border-rose-500 text-xs"
@@ -281,7 +304,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800 font-bold text-blue-400">
                       <input
                         type="text"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.nama_debitur}
                         onChange={(e) => handleCellChange(idx, "nama_debitur", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-bold text-blue-400 focus:outline-none focus:border-rose-500 text-xs"
@@ -292,7 +315,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="text"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.bidang_usaha}
                         onChange={(e) => handleCellChange(idx, "bidang_usaha", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
@@ -303,7 +326,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="text"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.no_tabungan}
                         onChange={(e) => handleCellChange(idx, "no_tabungan", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
@@ -314,7 +337,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="text"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.no_pinjaman}
                         onChange={(e) => handleCellChange(idx, "no_pinjaman", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
@@ -324,7 +347,7 @@ export function ExecutionGrid({
                     {/* Select LINE PROSES */}
                     <td className="p-1 border-r border-slate-800">
                       <select
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.line_proses}
                         onChange={(e) => handleCellChange(idx, "line_proses", e.target.value)}
                         className="w-full bg-amber-200 font-bold text-slate-950 border border-amber-300 rounded px-1.5 py-1 focus:outline-none text-xs"
@@ -341,7 +364,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="number"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.plafon}
                         onChange={(e) => handleCellChange(idx, "plafon", Number(e.target.value))}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-emerald-400 font-bold focus:outline-none focus:border-rose-500 text-xs"
@@ -352,7 +375,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="number"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.nett_booking}
                         onChange={(e) => handleCellChange(idx, "nett_booking", Number(e.target.value))}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-blue-400 font-bold focus:outline-none focus:border-rose-500 text-xs"
@@ -363,7 +386,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="date"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.tgl_cair || ""}
                         onChange={(e) => handleCellChange(idx, "tgl_cair", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 font-mono text-slate-300 focus:outline-none text-[11px]"
@@ -374,7 +397,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="text"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.periode_bulan}
                         onChange={(e) => handleCellChange(idx, "periode_bulan", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 font-mono text-slate-300 focus:outline-none text-[11px]"
@@ -385,7 +408,7 @@ export function ExecutionGrid({
                     <td className="p-2 border-r border-slate-800 text-center">
                       <input
                         type="checkbox"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         checked={row.qris === "V" || row.qris === "true"}
                         onChange={(e) => handleCellChange(idx, "qris", e.target.checked ? "V" : "")}
                         className="rounded border-slate-800 text-rose-600 focus:ring-0 cursor-pointer"
@@ -396,7 +419,7 @@ export function ExecutionGrid({
                     <td className="p-2 border-r border-slate-800 text-center">
                       <input
                         type="checkbox"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         checked={row.jakone_abank === "V" || row.jakone_abank === "true"}
                         onChange={(e) => handleCellChange(idx, "jakone_abank", e.target.checked ? "V" : "")}
                         className="rounded border-slate-800 text-rose-600 focus:ring-0 cursor-pointer"
@@ -407,7 +430,7 @@ export function ExecutionGrid({
                     <td className="p-2 border-r border-slate-800 text-center">
                       <input
                         type="checkbox"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         checked={row.jakone_mobile === "V" || row.jakone_mobile === "true"}
                         onChange={(e) => handleCellChange(idx, "jakone_mobile", e.target.checked ? "V" : "")}
                         className="rounded border-slate-800 text-rose-600 focus:ring-0 cursor-pointer"
@@ -418,7 +441,7 @@ export function ExecutionGrid({
                     <td className="p-2 border-r border-slate-800 text-center">
                       <input
                         type="checkbox"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         checked={row.edc === "V" || row.edc === "true"}
                         onChange={(e) => handleCellChange(idx, "edc", e.target.checked ? "V" : "")}
                         className="rounded border-slate-800 text-rose-600 focus:ring-0 cursor-pointer"
@@ -429,7 +452,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <input
                         type="text"
-                        disabled={isLocked}
+                        disabled={isReadOnly}
                         value={row.keterangan}
                         onChange={(e) => handleCellChange(idx, "keterangan", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
@@ -437,7 +460,7 @@ export function ExecutionGrid({
                     </td>
 
                     {/* Aksi Hapus Baris */}
-                    {!isLocked && (
+                    {!isReadOnly && (
                       <td className="p-2 text-center">
                         <button
                           onClick={() => handleDeleteRow(idx, row.id)}
