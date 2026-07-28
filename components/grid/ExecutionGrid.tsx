@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { getTodayDateString } from "@/lib/utils";
 
-interface ExecutionRow {
+export interface ExecutionRowData {
   id?: string;
   no_urut?: number;
   unit_id: string;
@@ -27,6 +27,9 @@ interface ExecutionRow {
   keterangan: string;
 }
 
+// Backward-compatibility alias jika ada modul lain yang memakai nama ExecutionRow
+export type ExecutionRow = ExecutionRowData;
+
 interface ExecutionGridProps {
   unitId: string;
   sentraName: string;
@@ -42,7 +45,7 @@ export function ExecutionGrid({
   reportDate = getTodayDateString(),
   isLocked = false,
 }: ExecutionGridProps) {
-  const [rows, setRows] = useState<ExecutionRow[]>([]);
+  const [rows, setRows] = useState<ExecutionRowData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saveStatus, setSaveStatus] = useState<string>("");
 
@@ -74,7 +77,7 @@ export function ExecutionGrid({
   // Tambah Baris Baru (SELALU BISA DIKLIK KAPAN SAJA)
   const handleAddRow = () => {
     const nextNoUrut = rows.length + 1;
-    const newRow: ExecutionRow = {
+    const newRow: ExecutionRowData = {
       id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       no_urut: nextNoUrut,
       unit_id: activeUnitId,
@@ -100,14 +103,14 @@ export function ExecutionGrid({
   };
 
   // Handle Perubahan Sel & Auto Save
-  const handleCellChange = (index: number, field: keyof ExecutionRow, value: any) => {
+  const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
     const updatedRows = [...rows];
     updatedRows[index] = { ...updatedRows[index], [field]: value, no_urut: index + 1 };
     setRows(updatedRows);
     autoSaveRow(updatedRows[index], index);
   };
 
-  const autoSaveRow = async (rowToSave: ExecutionRow, rowIndex: number) => {
+  const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
       const payload = {
