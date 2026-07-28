@@ -38,6 +38,18 @@ interface UnitGridProps {
   };
 }
 
+// Style Objek Konstan Kompatibel dengan AG Grid CellStyle Index Signature
+const lockedCellStyle: Record<string, string> = {
+  backgroundColor: "#0f172a",
+  color: "#94a3b8",
+};
+
+const lockedCenteredCellStyle: Record<string, string> = {
+  textAlign: "center",
+  backgroundColor: "#0f172a",
+  color: "#94a3b8",
+};
+
 export function UnitGrid({
   rowData,
   isLocked,
@@ -52,7 +64,7 @@ export function UnitGrid({
     setRows(rowData);
   }, [rowData]);
 
-  // Definisi Kolom Dengan Label Baru (MUH -> UNIT) & Explicit cellStyle CSSProperties
+  // Definisi Kolom Dengan Label Baru (MUH -> UNIT)
   const columnDefs = useMemo<ColDef<GridRowData>[]>(
     () => [
       {
@@ -60,49 +72,49 @@ export function UnitGrid({
         field: "no_urut",
         width: 70,
         editable: false,
-        cellStyle: { textAlign: "center", backgroundColor: "#0f172a", color: "#94a3b8" } as const,
+        cellStyle: lockedCenteredCellStyle,
       },
       {
         headerName: "Kantor Cabang",
         field: "kc_name",
         width: 180,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
+        cellStyle: lockedCellStyle,
       },
       {
         headerName: "KCP",
         field: "kcp_name",
         width: 180,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
+        cellStyle: lockedCellStyle,
       },
       {
         headerName: "Sentra Mikro",
         field: "sentra_mikro",
         width: 160,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
+        cellStyle: lockedCellStyle,
       },
       {
         headerName: "UNIT",
         field: "muh_name",
         width: 160,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
+        cellStyle: lockedCellStyle,
       },
       {
         headerName: "Status UNIT",
         field: "muh_status",
         width: 130,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
+        cellStyle: lockedCellStyle,
       },
       {
         headerName: "Analis Mikro",
         field: "analis_mikro",
         width: 160,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
+        cellStyle: lockedCellStyle,
       },
       {
         headerName: "Nama SM *",
