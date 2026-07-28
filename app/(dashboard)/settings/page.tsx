@@ -92,7 +92,9 @@ export default function SettingsPage() {
         body: JSON.stringify(formData),
       });
 
-      if (res.ok) {
+      const result = await res.json();
+
+      if (res.ok && result.success) {
         await fetchUnits();
         setShowModal(false);
         setFormData({
@@ -107,10 +109,10 @@ export default function SettingsPage() {
         });
         alert("✓ Unit baru & Akun Login Supabase berhasil didaftarkan!");
       } else {
-        alert("Gagal menyimpan data unit.");
+        alert(`Gagal menyimpan data unit: ${result.error || "Pemeriksaan Supabase Database gagal."}`);
       }
-    } catch (err) {
-      alert("Terjadi kesalahan jaringan.");
+    } catch (err: any) {
+      alert(`Terjadi kesalahan jaringan: ${err?.message || "Internal Error"}`);
     } finally {
       setSavingUnit(false);
     }

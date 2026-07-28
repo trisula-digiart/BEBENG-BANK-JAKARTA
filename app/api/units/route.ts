@@ -20,7 +20,7 @@ export async function GET() {
 
     if (error) {
       console.error("Fetch units error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json({ data: data || [] }, { status: 200 });
@@ -30,7 +30,7 @@ export async function GET() {
   }
 }
 
-// POST: Save/Insert New Unit + Auto Create Login User Credentials (BULLETPROOF VERSION)
+// POST: Save/Insert New Unit + Auto Create Login User Credentials
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -48,14 +48,14 @@ export async function POST(req: Request) {
 
     const supabase = getSupabaseClient();
 
-    // 1. Persiapkan Payload Unit
-    const unitPayload: Record<string, any> = {
-      kc_name: kc_name || "Walikota Jakarta Timur",
-      kcp_name: kcp_name || "-",
-      sentra_mikro: sentra_mikro || "-",
-      muh_name: muh_name || "-",
-      muh_status: muh_status || "Tetap",
-      analis_mikro: analis_mikro || "-",
+    // 1. Sanitasi Payload Unit (Mencegah nilai NULL pada kolom NOT NULL PostgreSQL)
+    const unitPayload = {
+      kc_name: String(kc_name || "Walikota Jakarta Timur").trim(),
+      kcp_name: String(kcp_name || "-").trim(),
+      sentra_mikro: String(sentra_mikro || "-").trim(),
+      muh_name: String(muh_name || "-").trim(),
+      muh_status: String(muh_status || "Tetap").trim(),
+      analis_mikro: String(analis_mikro || "-").trim(),
       updated_at: new Date().toISOString(),
     };
 
@@ -70,8 +70,8 @@ export async function POST(req: Request) {
         .select();
 
       if (error) {
-        console.error("Update unit error:", error);
-        return NextResponse.json({ error: error.message }, { status: 400 });
+        console.error("Update unit DB error:", error);
+        return NextResponse.json({ error: `Gagal Update DB: ${error.message}` }, { status: 400 });
       }
       savedUnit = data && data[0] ? data[0] : { id, ...unitPayload };
     } else {
@@ -82,27 +82,18 @@ export async function POST(req: Request) {
         .select();
 
       if (error) {
-        console.error("Insert unit error:", error);
-        return NextResponse.json({ error: error.message }, { status: 400 });
+        console.error("Insert unit DB error:", error);
+        return NextResponse.json({ error: `Gagal Insert DB Units: ${error.message}` }, { status: 400 });
       }
       savedUnit = data && data[0] ? data[0] : unitPayload;
     }
 
-    // 2. Registrasi / Update Kredensial Akun Login di app_users
+    // 2. Registrasi / Upsert Credentials Akun Login di app_users
     if (username && password) {
-      const cleanUsername = username.toLowerCase().trim();
-      const userPayload = {
-        username: cleanUsername,
-        password: password,
-        role: "UNIT",
-        unit_id: savedUnit.id || null,
-        unit_name: kcp_name || "-",
-        sentra_mikro: sentra_mikro || "-",
-        updated_at: new Date().toISOString(),
-      };
+      const cleanUsername = String(username).toLowerCase().trim();
+      const cleanPassword = String(password).trim();
 
       try {
-        // Cek apakah username sudah terdaftar di app_users
         const { data: existingUser } = await supabase
           .from("app_users")
           .select("id")
@@ -110,34 +101,40 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         if (existingUser) {
-          // Update Password & Link Unit jika user sudah ada
           await supabase
             .from("app_users")
             .update({
-              password: password,
+              password: cleanPassword,
               unit_id: savedUnit.id || null,
-              unit_name: kcp_name || "-",
-              sentra_mikro: sentra_mikro || "-",
+              unit_name: unitPayload.kcp_name,
+              sentra_mikro: unitPayload.sentra_mikro,
+              updated_at: new Date().toISOString(),
             })
             .eq("id", existingUser.id);
         } else {
-          // Insert User Baru jika belum ada
-          await supabase.from("app_users").insert([{
-            ...userPayload,
-            created_at: new Date().toISOString(),
-          }]);
+          await supabase.from("app_users").insert([
+            {
+              username: cleanUsername,
+              password: cleanPassword,
+              role: "UNIT",
+              unit_id: savedUnit.id || null,
+              unit_name: unitPayload.kcp_name,
+              sentra_mikro: unitPayload.sentra_mikro,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          ]);
         }
       } catch (userErr) {
-        console.warn("User credentials non-fatal warning:", userErr);
-        // Non-blocking: Unit tetap berhasil disimpan meskipun tabel user mengalami warning
+        console.warn("User credentials creation warning:", userErr);
       }
     }
 
     return NextResponse.json({ data: savedUnit, success: true }, { status: 200 });
   } catch (err: any) {
-    console.error("POST units internal error:", err);
+    console.error("POST units internal exception:", err);
     return NextResponse.json(
-      { error: err?.message || "Internal Server Error saat menyimpan unit" },
+      { error: err?.message || "Internal Exception saat menyimpan unit" },
       { status: 500 }
     );
   }
