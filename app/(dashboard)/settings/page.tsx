@@ -11,6 +11,8 @@ interface UnitData {
   muh_name: string;
   muh_status: "Tetap" | "Backup";
   analis_mikro: string;
+  username?: string;
+  password?: string;
 }
 
 export default function SettingsPage() {
@@ -30,6 +32,8 @@ export default function SettingsPage() {
     muh_name: "",
     muh_status: "Tetap",
     analis_mikro: "",
+    username: "",
+    password: "",
   });
 
   // Fetch Master Units
@@ -63,15 +67,20 @@ export default function SettingsPage() {
       setSavingBankName(false);
       setSavedNameSuccess(true);
       setTimeout(() => setSavedNameSuccess(false), 2500);
-      window.location.reload(); // Refresh untuk menerapkan nama bank ke Header Nav
+      window.location.reload();
     }, 500);
   };
 
-  // Handle Save / Update Unit
+  // Handle Save / Update Unit + User Account
   const handleSaveUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.kcp_name || !formData.sentra_mikro || !formData.muh_name || !formData.analis_mikro) {
       alert("Semua field unit wajib diisi.");
+      return;
+    }
+
+    if (!formData.id && (!formData.username || !formData.password)) {
+      alert("Username (Email) dan Password wajib diisi untuk pendaftaran unit baru.");
       return;
     }
 
@@ -93,7 +102,10 @@ export default function SettingsPage() {
           muh_name: "",
           muh_status: "Tetap",
           analis_mikro: "",
+          username: "",
+          password: "",
         });
+        alert("✓ Unit baru & Akun Login Supabase berhasil didaftarkan!");
       } else {
         alert("Gagal menyimpan data unit.");
       }
@@ -136,7 +148,7 @@ export default function SettingsPage() {
           Pengaturan Sistem & Manajemen Unit
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Kelola nama bank/instansi header, manajemen master data unit kerja, serta pantauan waktu operasional real-time.
+          Kelola nama bank/instansi header, pendaftaran unit kerja baru & akun akses login, serta pantauan waktu operasional real-time.
         </p>
       </div>
 
@@ -190,10 +202,10 @@ export default function SettingsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-3 mb-4 gap-3">
           <div>
             <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              <span>🏢</span> Manajemen Data Unit Kerja (17 Unit Area)
+              <span>🏢</span> Manajemen Data Unit Kerja & Akun Access Login
             </h2>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Tambah, edit, atau hapus data unit kerja untuk mengontrol hak akses penginputan.
+              Tambah unit baru, set akun email & password login, atau kelola unit kerja terdaftar.
             </p>
           </div>
           <button
@@ -205,24 +217,60 @@ export default function SettingsPage() {
                 muh_name: "",
                 muh_status: "Tetap",
                 analis_mikro: "",
+                username: "",
+                password: "",
               });
               setShowModal(true);
             }}
-            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow-md cursor-pointer self-start sm:self-auto"
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow-md cursor-pointer self-start sm:self-auto flex items-center gap-1.5"
           >
-            + Tambah Data Unit Baru
+            <span>+</span> Tambah Data Unit Baru
           </button>
         </div>
 
         {/* Modal Form Unit */}
         {showModal && (
-          <form onSubmit={handleSaveUnit} className="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5 space-y-3 text-xs">
-            <h3 className="font-bold text-slate-200 text-xs border-b border-slate-800 pb-2">
-              {formData.id ? "✏️ Edit Data Unit" : "➕ Tambah Unit Kerja Baru"}
+          <form onSubmit={handleSaveUnit} className="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5 space-y-3 text-xs shadow-2xl">
+            <h3 className="font-bold text-slate-200 text-xs border-b border-slate-800 pb-2 flex items-center justify-between">
+              <span>{formData.id ? "✏️ Edit Data Unit" : "➕ Pendaftaran Unit Kerja Baru & Akun Login"}</span>
+              <button type="button" onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white">✕</button>
             </h3>
+
+            {/* BARIS 1: CREDENTIALS AKUN LOGIN (WAKTU UNIT BARU) */}
+            {!formData.id && (
+              <div className="p-3 bg-indigo-950/40 border border-indigo-800/60 rounded-lg space-y-2">
+                <span className="text-[11px] font-bold text-indigo-300 block uppercase">🔐 Kredensial Login Akun Unit Baru:</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-300 mb-1">Username (Email Unit) *</label>
+                    <input
+                      type="email"
+                      required={!formData.id}
+                      value={formData.username || ""}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      placeholder="contoh: unit.cikarang@bank.com"
+                      className="w-full rounded bg-slate-900 border border-slate-800 p-2 text-slate-100 focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 mb-1">Password Akses *</label>
+                    <input
+                      type="text"
+                      required={!formData.id}
+                      value={formData.password || ""}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Masukkan kata sandi bebas..."
+                      className="w-full rounded bg-slate-900 border border-slate-800 p-2 text-slate-100 focus:border-indigo-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* BARIS 2: DETAIL UNIT KERJA */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1">Nama KCP / Unit *</label>
+                <label className="block text-slate-400 mb-1">Cabang Unit (KCP / Unit) *</label>
                 <input
                   type="text"
                   required
@@ -285,7 +333,7 @@ export default function SettingsPage() {
                   disabled={savingUnit}
                   className="w-full py-2 bg-blue-600 hover:bg-blue-500 font-bold text-white rounded transition-colors cursor-pointer"
                 >
-                  {savingUnit ? "Menyimpan..." : "Simpan Data Unit"}
+                  {savingUnit ? "Menyimpan..." : "Simpan & Daftarkan Unit"}
                 </button>
                 <button
                   type="button"
@@ -305,7 +353,7 @@ export default function SettingsPage() {
             <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
               <tr>
                 <th className="px-3 py-2.5">No</th>
-                <th className="px-3 py-2.5">KCP / Unit</th>
+                <th className="px-3 py-2.5">Cabang Unit (KCP)</th>
                 <th className="px-3 py-2.5">Sentra Mikro</th>
                 <th className="px-3 py-2.5">UNIT</th>
                 <th className="px-3 py-2.5">Status UNIT</th>
