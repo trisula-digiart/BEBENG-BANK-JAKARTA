@@ -17,80 +17,89 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg(null);
 
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = password.trim();
+
     try {
       const supabase = createBrowserClient();
 
-      // 1. Authenticate via Supabase Auth Engine
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password.trim(),
-        });
-
-      if (authError) {
-        console.error("Supabase Auth Error Detail:", authError);
-        throw new Error(authError.message || "Email atau password yang Anda masukkan salah.");
-      }
-
-      if (!authData?.user) {
-        throw new Error("Sesi pengguna tidak dapat ditemukan.");
-      }
-
-      // 2. Fetch User Profile & Role from PostgreSQL
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*, units(*)")
-        .eq("id", authData.user.id)
+      // =========================================================================
+      // LANGKAH 1: CEK LOGIN LANGSUNG KE TABEL public.app_users (AKUN MANAJEMEN UNIT)
+      // =========================================================================
+      const { data: customUser, error: customError } = await supabase
+        .from("app_users")
+        .select("*")
+        .eq("username", cleanEmail)
+        .eq("password", cleanPassword)
         .maybeSingle();
 
-      if (profileError) {
-        console.error("Supabase Profile Query Error:", profileError);
-        throw new Error(`Gagal membaca profil: ${profileError.message || "Aturan RLS menolak akses."}`);
-      }
+      if (customUser) {
+        // LOGIN BERHASIL VIA APP_USERS!
+        const userSession = {
+          id: customUser.id,
+          email: customUser.username,
+          username: customUser.username?.split("@")[0] || "Unit User",
+          role: customUser.role || "UNIT",
+          unit_name: customUser.unit_name || "Unit Kerja",
+          sentra_mikro: customUser.sentra_mikro || "Sentra Mikro",
+        };
 
-      if (!profile) {
-        throw new Error(`Akun (${authData.user.email}) berhasil login, tetapi belum memiliki data 'role' di tabel profiles.`);
-      }
+        localStorage.setItem("app_user", JSON.stringify(userSession));
 
-      // Sync Sesi User ke LocalStorage agar HeaderNav membaca Sesi Profile secara sempurna
-      const userSession = {
-        id: authData.user.id,
-        email: authData.user.email,
-        username: profile.username || profile.full_name || authData.user.email?.split("@")[0] || "User",
-        role: profile.role || "HEAD_AREA",
-        unit_name: profile.units?.kcp_name || profile.unit_name || "KCP Walikota",
-        sentra_mikro: profile.units?.sentra_mikro || "Sentra Mikro Jkt Timur",
-      };
-      localStorage.setItem("app_user", JSON.stringify(userSession));
-
-      // 3. Conditional Redirect berdasarkan Role
-      if (profile.role === "HEAD_AREA") {
-        router.push("/head-area");
-      } else {
-        router.push("/unit-execution");
-      }
-      router.refresh();
-    } catch (err: any) {
-      console.error("Login Handler Caught Exception:", err);
-
-      let finalMessage = "Terjadi kesalahan sistem saat proses masuk.";
-
-      if (typeof err === "string") {
-        finalMessage = err;
-      } else if (err?.message && typeof err.message === "string") {
-        finalMessage = err.message;
-      } else if (err?.error_description) {
-        finalMessage = err.error_description;
-      } else {
-        try {
-          const str = JSON.stringify(err);
-          if (str !== "{}" && str !== "") finalMessage = str;
-        } catch {
-          // Fallback ke default
+        // Redirect Berdasarkan Role
+        if (customUser.role === "HEAD_AREA") {
+          router.push("/head-area");
+        } else {
+          router.push("/unit-execution");
         }
+        router.refresh();
+        return;
       }
 
-      setErrorMsg(finalMessage);
+      // =========================================================================
+      // LANGKAH 2: FALLBACK CEK KE SUPABASE AUTH NATIVE (UNTUK AKUN BAWAAN OLD)
+      // =========================================================================
+      const { data: authData, error: authError } =
+        await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword,
+        });
+
+      if (!authError && authData?.user) {
+        // Fetch Profile dari Tabel profiles jika ada
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*, units(*)")
+          .eq("id", authData.user.id)
+          .maybeSingle();
+
+        const userRole = profile?.role || (cleanEmail.includes("head") || cleanEmail.includes("manong") ? "HEAD_AREA" : "UNIT");
+
+        const userSession = {
+          id: authData.user.id,
+          email: authData.user.email,
+          username: profile?.username || profile?.full_name || authData.user.email?.split("@")[0] || "User",
+          role: userRole,
+          unit_name: profile?.units?.kcp_name || profile?.unit_name || "KCP Walikota",
+          sentra_mikro: profile?.units?.sentra_mikro || "Sentra Mikro Jkt Timur",
+        };
+
+        localStorage.setItem("app_user", JSON.stringify(userSession));
+
+        if (userRole === "HEAD_AREA") {
+          router.push("/head-area");
+        } else {
+          router.push("/unit-execution");
+        }
+        router.refresh();
+        return;
+      }
+
+      // Jika keduanya gagal
+      throw new Error("Email/Username atau Password yang Anda masukkan salah.");
+    } catch (err: any) {
+      console.error("Login Handler Exception:", err);
+      setErrorMsg(err?.message || "Kredensial login tidak ditemukan. Periksa email dan password.");
     } finally {
       setLoading(false);
     }
