@@ -51,10 +51,7 @@ export function HeaderNav({
   }, []);
 
   useEffect(() => {
-    // Cek koneksi pertama kali
     checkDbConnection();
-
-    // Auto Polling setiap 20 detik
     const interval = setInterval(() => {
       checkDbConnection();
     }, 20000);
@@ -63,7 +60,6 @@ export function HeaderNav({
   }, [checkDbConnection]);
 
   useEffect(() => {
-    // Sync session user dari LocalStorage
     const savedUser = localStorage.getItem("app_user");
     if (savedUser) {
       try {
@@ -79,7 +75,6 @@ export function HeaderNav({
       });
     }
 
-    // Fetch Global Settings / Bank Name
     fetch("/api/reports")
       .then((res) => res.json())
       .then((data) => {
@@ -116,102 +111,104 @@ export function HeaderNav({
         </div>
       )}
 
-      <header className="w-full bg-slate-950/90 border-b border-slate-800 text-slate-100 sticky top-0 z-40 shadow-2xl backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          {/* Brand Logo & Title */}
-          <div className="flex items-center gap-6">
-            <Link href={isHeadArea ? "/head-area" : "/unit-execution"} className="flex items-center gap-3.5 group">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-600 flex items-center justify-center font-black text-white text-base shadow-lg shadow-indigo-600/40 group-hover:scale-105 group-hover:shadow-indigo-500/60 transition-all border border-indigo-400/30">
+      <header className="w-full bg-slate-950/95 border-b border-slate-800 text-slate-100 sticky top-0 z-40 shadow-2xl backdrop-blur-md">
+        {/* Full Width Container Tanpa Pembatas Max-Width Sempit */}
+        <div className="w-full px-4 sm:px-8 h-20 flex items-center justify-between">
+          
+          {/* BRAND LOGO & NAMA BANK (PEPED KIRI & AGAK DIPERBESAR) */}
+          <div className="flex items-center gap-4">
+            <Link href={isHeadArea ? "/head-area" : "/unit-execution"} className="flex items-center gap-3 group">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-600 flex items-center justify-center font-black text-white text-lg shadow-lg shadow-indigo-600/40 group-hover:scale-105 group-hover:shadow-indigo-500/60 transition-all border border-indigo-400/30 flex-shrink-0">
                 BK
               </div>
-              <div className="flex flex-col">
-                <span className="font-black tracking-widest text-xl sm:text-2xl bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-indigo-300 drop-shadow-md group-hover:to-rose-400 transition-all uppercase">
+              <div className="flex flex-col justify-center">
+                <span className="font-black tracking-widest text-2xl sm:text-3xl leading-none bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-indigo-300 drop-shadow-md group-hover:to-rose-400 transition-all uppercase">
                   {bankName}
                 </span>
-                <span className="text-[10px] font-mono tracking-wider text-slate-400 uppercase -mt-0.5">
-                  Enterprise Reporting Portal
+                <span className="text-[10px] font-mono tracking-wider text-slate-400 uppercase mt-1 block whitespace-nowrap">
+                  ENTERPRISE REPORTING PORTAL
                 </span>
               </div>
             </Link>
-
-            {/* Dynamic Nav Items Based On Role */}
-            <nav className="hidden md:flex items-center gap-2 text-xs font-semibold ml-4">
-              {isHeadArea ? (
-                <>
-                  <Link
-                    href="/head-area"
-                    className={`px-3.5 py-2 rounded-xl transition-all ${
-                      pathname === "/head-area"
-                        ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
-                        : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
-                    }`}
-                  >
-                    KONSOLIDASI UNIT
-                  </Link>
-
-                  <Link
-                    href="/head-execution"
-                    className={`px-3.5 py-2 rounded-xl transition-all ${
-                      pathname === "/head-execution"
-                        ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
-                        : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
-                    }`}
-                  >
-                    REKAP DATA EKSEKUSI
-                  </Link>
-
-                  <Link
-                    href="/settings"
-                    className={`px-3.5 py-2 rounded-xl transition-all ${
-                      pathname === "/settings"
-                        ? "bg-amber-600 text-white font-bold shadow-lg shadow-amber-600/30 border border-amber-400/40"
-                        : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
-                    }`}
-                  >
-                    ⚙️ PENGATURAN
-                  </Link>
-
-                  <Link
-                    href="/vault"
-                    className={`px-3.5 py-2 rounded-xl transition-all ${
-                      pathname === "/vault"
-                        ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
-                        : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
-                    }`}
-                  >
-                    💼 BRANGKAS DOKUMEN
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/unit-execution"
-                    className={`px-3.5 py-2 rounded-xl transition-all ${
-                      pathname === "/unit-execution"
-                        ? "bg-rose-600 text-white font-bold shadow-lg shadow-rose-600/30 border border-rose-400/40"
-                        : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
-                    }`}
-                  >
-                    DATA EKSEKUSI
-                  </Link>
-
-                  <Link
-                    href="/unit-control"
-                    className={`px-3.5 py-2 rounded-xl transition-all ${
-                      pathname === "/unit-control"
-                        ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
-                        : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
-                    }`}
-                  >
-                    MODUL KEPALA UNIT
-                  </Link>
-                </>
-              )}
-            </nav>
           </div>
 
-          {/* User Badge, Database Connection Status & Logout */}
-          <div className="flex items-center gap-3">
+          {/* DYNAMIC NAV ITEMS (CENTER NAVIGATION) */}
+          <nav className="hidden lg:flex items-center gap-2 text-xs font-semibold">
+            {isHeadArea ? (
+              <>
+                <Link
+                  href="/head-area"
+                  className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${
+                    pathname === "/head-area"
+                      ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                  }`}
+                >
+                  KONSOLIDASI UNIT
+                </Link>
+
+                <Link
+                  href="/head-execution"
+                  className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${
+                    pathname === "/head-execution"
+                      ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                  }`}
+                >
+                  REKAP DATA EKSEKUSI
+                </Link>
+
+                <Link
+                  href="/settings"
+                  className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${
+                    pathname === "/settings"
+                      ? "bg-amber-600 text-white font-bold shadow-lg shadow-amber-600/30 border border-amber-400/40"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                  }`}
+                >
+                  ⚙️ PENGATURAN
+                </Link>
+
+                <Link
+                  href="/vault"
+                  className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${
+                    pathname === "/vault"
+                      ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                  }`}
+                >
+                  💼 BRANGKAS DOKUMEN
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/unit-execution"
+                  className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${
+                    pathname === "/unit-execution"
+                      ? "bg-rose-600 text-white font-bold shadow-lg shadow-rose-600/30 border border-rose-400/40"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                  }`}
+                >
+                  DATA EKSEKUSI
+                </Link>
+
+                <Link
+                  href="/unit-control"
+                  className={`px-4 py-2 rounded-xl transition-all whitespace-nowrap ${
+                    pathname === "/unit-control"
+                      ? "bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-600/30 border border-indigo-400/40"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-900"
+                  }`}
+                >
+                  MODUL KEPALA UNIT
+                </Link>
+              </>
+            )}
+          </nav>
+
+          {/* USER PROFILE & CONTROLS (PEPED KANAN) */}
+          <div className="flex items-center gap-3.5">
             {/* INDIKATOR STATUS KONEKSI DATABASE REALTIME */}
             <div
               title={
@@ -221,7 +218,7 @@ export function HeaderNav({
                   ? dbErrorMessage
                   : "Mengecek Koneksi DB..."
               }
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono border transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold font-mono border transition-all cursor-pointer whitespace-nowrap ${
                 dbStatus === "online"
                   ? "bg-emerald-950/80 text-emerald-400 border-emerald-800"
                   : dbStatus === "offline"
@@ -248,18 +245,20 @@ export function HeaderNav({
               </span>
             </div>
 
-            <div className="text-right hidden sm:block">
+            {/* DETAIL USER & UNIT */}
+            <div className="text-right hidden sm:block leading-tight">
               <div className="text-xs font-bold text-slate-200">
                 {activeUsername}{" "}
                 <span className="text-slate-400 font-normal">({activeRole})</span>
               </div>
-              <div className="text-[10px] text-slate-400 font-mono">
+              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                 {user?.sentra_mikro ? `${activeUnitName} (${user.sentra_mikro})` : activeUnitName}
               </div>
             </div>
 
+            {/* BADGE ROLE */}
             <span
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase border ${
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase border whitespace-nowrap ${
                 isHeadArea
                   ? "bg-indigo-950/80 text-indigo-400 border-indigo-800"
                   : "bg-emerald-950/80 text-emerald-400 border-emerald-800"
@@ -268,13 +267,15 @@ export function HeaderNav({
               {activeRole}
             </span>
 
+            {/* TOMBOL KELUAR */}
             <button
               onClick={handleLogout}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
+              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm whitespace-nowrap"
             >
               Keluar
             </button>
           </div>
+
         </div>
       </header>
     </>
