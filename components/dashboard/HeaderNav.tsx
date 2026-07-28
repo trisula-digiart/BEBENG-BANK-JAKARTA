@@ -4,14 +4,24 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
+export interface HeaderNavProps {
+  userRole?: "HEAD_AREA" | "UNIT" | "MUH" | string;
+  userName?: string;
+  unitName?: string;
+}
+
 interface UserProfile {
   username: string;
-  role: "HEAD_AREA" | "UNIT";
+  role: "HEAD_AREA" | "UNIT" | "MUH" | string;
   unit_name?: string;
   sentra_mikro?: string;
 }
 
-export function HeaderNav() {
+export function HeaderNav({
+  userRole: initialRole,
+  userName: initialName,
+  unitName: initialUnit,
+}: HeaderNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [bankName, setBankName] = useState<string>("BANK EMOK");
@@ -27,10 +37,11 @@ export function HeaderNav() {
         console.error("Failed to parse user session");
       }
     } else {
-      // Default fallback jika belum login
+      // Default fallback menggunakan props jika tersedia, atau default Head Office
       setUser({
-        username: "Head Office",
-        role: "HEAD_AREA",
+        username: initialName || "Head Office",
+        role: initialRole || "HEAD_AREA",
+        unit_name: initialUnit || "Head Office Area",
       });
     }
 
@@ -41,14 +52,17 @@ export function HeaderNav() {
         if (data.bank_name) setBankName(data.bank_name);
       })
       .catch(() => {});
-  }, []);
+  }, [initialRole, initialName, initialUnit]);
 
   const handleLogout = () => {
     localStorage.removeItem("app_user");
     router.push("/login");
   };
 
-  const isHeadArea = !user || user.role === "HEAD_AREA";
+  const activeRole = user?.role || initialRole || "HEAD_AREA";
+  const activeUsername = user?.username || initialName || "Head Area";
+  const activeUnitName = user?.unit_name || initialUnit || "Head Office Area";
+  const isHeadArea = activeRole === "HEAD_AREA";
 
   return (
     <header className="w-full bg-slate-950/90 border-b border-slate-800 text-slate-100 sticky top-0 z-40 shadow-2xl backdrop-blur-md">
@@ -155,11 +169,11 @@ export function HeaderNav() {
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <div className="text-xs font-bold text-slate-200">
-              {user?.username || "Head Area"}{" "}
-              <span className="text-slate-400 font-normal">({user?.role || "HEAD_AREA"})</span>
+              {activeUsername}{" "}
+              <span className="text-slate-400 font-normal">({activeRole})</span>
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              {user?.unit_name ? `${user.unit_name} (${user.sentra_mikro})` : "Head Office Area"}
+              {user?.sentra_mikro ? `${activeUnitName} (${user.sentra_mikro})` : activeUnitName}
             </div>
           </div>
 
@@ -170,7 +184,7 @@ export function HeaderNav() {
                 : "bg-emerald-950/80 text-emerald-400 border-emerald-800"
             }`}
           >
-            {user?.role || "HEAD_AREA"}
+            {activeRole}
           </span>
 
           <button
