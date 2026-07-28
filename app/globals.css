@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* ====================================================================
+   PRINT MEDIA QUERY CSS (UNTUK HASIL CETAK LAPORAN PERBANKAN PRESISI)
+   ==================================================================== */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  /* Sembunyikan Seluruh Elemen Web Biasa Saat Print */
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10pt !important;
+  }
+
+  header,
+  footer,
+  .print\:hidden,
+  .ag-root-wrapper,
+  nav,
+  button,
+  input,
+  select {
+    display: none !important;
+  }
+
+  /* Tampilkan Hanya Kontainer Khusus Print */
+  .print-only-container {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 9pt !important;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #000000 !important;
+    padding: 4px 6px !important;
+    color: #000000 !important;
+  }
+
+  .print-table th {
+    background-color: #e2e8f0 !important;
+    font-weight: bold !important;
+    text-align: center !important;
+  }
+}
+
+.print-only-container {
+  display: none;
+}

@@ -1,0 +1,162 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase/server";
+
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createServerClient();
+
+    // 1. Cek Sesi User (Soft-Check untuk menghindari crash jika diakses komponen publik/header)
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        // Jika dipanggil dari HeaderNav tanpa date, tetap berikan response bank_name aman
+        const { searchParams } = new URL(request.url);
+        if (!searchParams.get("date")) {
+          return NextResponse.json({ bank_name: "BANK EMOK", data: [] }, { status: 200 });
+        }
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
+
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get("date");
+    const unit_id = searchParams.get("unit_id");
+
+    // FALLBACK SAFE: Jika dipanggil tanpa parameter date (seperti dari HeaderNav), kembalikan status 200 OK
+    if (!date) {
+      // Ambil nama bank dari setting jika ada
+      const { data: settings } = await supabase.from("app_settings").select("bank_name").single();
+      return NextResponse.json(
+        {
+          bank_name: settings?.bank_name || "BANK EMOK",
+          data: [],
+        },
+        { status: 200 }
+      );
+    }
+
+    // 2. Query Data ke Tabel sm_daily_reports (Kode Asli Proyek)
+    let query = supabase
+      .from("sm_daily_reports")
+      .select(`
+        id,
+        report_date,
+        unit_id,
+        no_urut,
+        nama_sm,
+        nrik,
+        vendor,
+        join_date,
+        dblm_status,
+        kode_officer,
+        is_locked,
+        created_at,
+        updated_at,
+        units:unit_id (
+          kc_name,
+          kcp_name,
+          sentra_mikro,
+          muh_name,
+          muh_status,
+          analis_mikro
+        )
+      `)
+      .eq("report_date", date);
+
+    if (unit_id) {
+      query = query.eq("unit_id", unit_id);
+    }
+
+    const { data, error } = await query.order("no_urut", { ascending: true });
+
+    if (error) {
+      console.error("Supabase Query Error in /api/reports:", error);
+      return NextResponse.json({ data: [] }, { status: 200 });
+    }
+
+    return NextResponse.json({ bank_name: "BANK EMOK", data: data || [] }, { status: 200 });
+  } catch (err: any) {
+    console.error("Internal Server Error in /api/reports:", err);
+    return NextResponse.json(
+      { error: err?.message || "Internal Server Error", data: [] },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createServerClient();
+
+    // Validasi User Session
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
+
+    const body = await request.json();
+    const { report_date, unit_id, reports } = body;
+
+    if (!report_date || !unit_id || !Array.isArray(reports)) {
+      return NextResponse.json({ error: "Invalid payload parameters" }, { status: 400 });
+    }
+
+    // Cek apakah laporan pada tanggal ini dikunci di sm_daily_reports
+    const { data: existingLock } = await supabase
+      .from("sm_daily_reports")
+      .select("is_locked")
+      .eq("report_date", report_date)
+      .eq("unit_id", unit_id)
+      .eq("is_locked", true)
+      .limit(1);
+
+    if (existingLock && existingLock.length > 0) {
+      return NextResponse.json(
+        { error: "Laporan untuk tanggal ini telah dikunci oleh Head Area." },
+        { status: 403 }
+      );
+    }
+
+    // Persiapkan data untuk Upsert (Kode Asli Proyek)
+    const rowsToUpsert = reports.map((item: any) => ({
+      ...(item.id ? { id: item.id } : {}),
+      report_date,
+      unit_id,
+      no_urut: item.no_urut,
+      nama_sm: item.nama_sm,
+      nrik: item.nrik,
+      vendor: item.vendor,
+      join_date: item.join_date,
+      dblm_status: item.dblm_status,
+      kode_officer: item.kode_officer,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { data, error } = await supabase
+      .from("sm_daily_reports")
+      .upsert(rowsToUpsert, { onConflict: "report_date, unit_id, no_urut" })
+      .select();
+
+    if (error) {
+      console.error("Upsert Error in /api/reports:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ data, message: "Berhasil menyimpan laporan" });
+  } catch (err: any) {
+    console.error("POST Handler Exception in /api/reports:", err);
+    return NextResponse.json({ error: err?.message || "Internal Server Error" }, { status: 500 });
+  }
+}
