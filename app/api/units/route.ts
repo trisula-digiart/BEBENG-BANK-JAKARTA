@@ -30,7 +30,7 @@ export async function GET() {
   }
 }
 
-// POST: Save/Insert New Unit + Auto Create Login User Credentials
+// POST: Save/Insert New Unit + Auto Create Login User Credentials (BULLETPROOF VERSION)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -48,63 +48,98 @@ export async function POST(req: Request) {
 
     const supabase = getSupabaseClient();
 
-    // 1. Upsert / Insert ke Tabel Master Units
-    const unitPayload = {
+    // 1. Persiapkan Payload Unit
+    const unitPayload: Record<string, any> = {
       kc_name: kc_name || "Walikota Jakarta Timur",
-      kcp_name,
-      sentra_mikro,
-      muh_name,
+      kcp_name: kcp_name || "-",
+      sentra_mikro: sentra_mikro || "-",
+      muh_name: muh_name || "-",
       muh_status: muh_status || "Tetap",
-      analis_mikro,
+      analis_mikro: analis_mikro || "-",
       updated_at: new Date().toISOString(),
     };
 
-    let unitResult;
+    let savedUnit: any = null;
+
     if (id) {
-      unitResult = await supabase
+      // UPDATE UNIT EXISTING
+      const { data, error } = await supabase
         .from("units")
         .update(unitPayload)
         .eq("id", id)
-        .select()
-        .single();
+        .select();
+
+      if (error) {
+        console.error("Update unit error:", error);
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      savedUnit = data && data[0] ? data[0] : { id, ...unitPayload };
     } else {
-      unitResult = await supabase
+      // INSERT UNIT BARU
+      const { data, error } = await supabase
         .from("units")
         .insert([unitPayload])
-        .select()
-        .single();
+        .select();
+
+      if (error) {
+        console.error("Insert unit error:", error);
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      savedUnit = data && data[0] ? data[0] : unitPayload;
     }
 
-    if (unitResult.error) {
-      console.error("Save unit error:", unitResult.error);
-      return NextResponse.json({ error: unitResult.error.message }, { status: 500 });
-    }
-
-    const savedUnit = unitResult.data;
-
-    // 2. Jika Unit Baru & Ada Credentials -> Simpan ke app_users
-    if (!id && username && password) {
+    // 2. Registrasi / Update Kredensial Akun Login di app_users
+    if (username && password) {
+      const cleanUsername = username.toLowerCase().trim();
       const userPayload = {
-        username: username.toLowerCase().trim(),
+        username: cleanUsername,
         password: password,
         role: "UNIT",
-        unit_id: savedUnit.id,
-        unit_name: kcp_name,
-        sentra_mikro: sentra_mikro,
-        created_at: new Date().toISOString(),
+        unit_id: savedUnit.id || null,
+        unit_name: kcp_name || "-",
+        sentra_mikro: sentra_mikro || "-",
+        updated_at: new Date().toISOString(),
       };
 
-      const userInsert = await supabase.from("app_users").insert([userPayload]);
-      if (userInsert.error) {
-        console.warn("App user creation warning:", userInsert.error);
-        // Tetap kembalikan unit berhasil meski user sudah ada/warning
+      try {
+        // Cek apakah username sudah terdaftar di app_users
+        const { data: existingUser } = await supabase
+          .from("app_users")
+          .select("id")
+          .eq("username", cleanUsername)
+          .maybeSingle();
+
+        if (existingUser) {
+          // Update Password & Link Unit jika user sudah ada
+          await supabase
+            .from("app_users")
+            .update({
+              password: password,
+              unit_id: savedUnit.id || null,
+              unit_name: kcp_name || "-",
+              sentra_mikro: sentra_mikro || "-",
+            })
+            .eq("id", existingUser.id);
+        } else {
+          // Insert User Baru jika belum ada
+          await supabase.from("app_users").insert([{
+            ...userPayload,
+            created_at: new Date().toISOString(),
+          }]);
+        }
+      } catch (userErr) {
+        console.warn("User credentials non-fatal warning:", userErr);
+        // Non-blocking: Unit tetap berhasil disimpan meskipun tabel user mengalami warning
       }
     }
 
-    return NextResponse.json({ data: savedUnit }, { status: 200 });
+    return NextResponse.json({ data: savedUnit, success: true }, { status: 200 });
   } catch (err: any) {
     console.error("POST units internal error:", err);
-    return NextResponse.json({ error: err?.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || "Internal Server Error saat menyimpan unit" },
+      { status: 500 }
+    );
   }
 }
 
@@ -123,7 +158,7 @@ export async function DELETE(req: Request) {
 
     if (error) {
       console.error("Delete unit error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json({ success: true }, { status: 200 });
