@@ -24,30 +24,34 @@ export default function LoginPage() {
       const supabase = createBrowserClient();
 
       // =========================================================================
-      // LANGKAH 1: CEK LOGIN LANGSUNG KE TABEL public.app_users (AKUN MANAJEMEN UNIT)
+      // 1. DIRECT QUERY KE TABEL public.app_users (TANPA MENYENTUH GOTRUE AUTH API)
       // =========================================================================
-      const { data: customUser, error: customError } = await supabase
+      const { data: appUser, error: appUserError } = await supabase
         .from("app_users")
         .select("*")
         .eq("username", cleanEmail)
         .eq("password", cleanPassword)
         .maybeSingle();
 
-      if (customUser) {
-        // LOGIN BERHASIL VIA APP_USERS!
+      if (appUserError) {
+        console.error("Query app_users error:", appUserError);
+      }
+
+      if (appUser) {
+        // SET USER SESSION KE LOCALSTORAGE
         const userSession = {
-          id: customUser.id,
-          email: customUser.username,
-          username: customUser.username?.split("@")[0] || "Unit User",
-          role: customUser.role || "UNIT",
-          unit_name: customUser.unit_name || "Unit Kerja",
-          sentra_mikro: customUser.sentra_mikro || "Sentra Mikro",
+          id: appUser.id,
+          email: appUser.username,
+          username: appUser.username?.split("@")[0] || "Unit User",
+          role: appUser.role || "UNIT",
+          unit_name: appUser.unit_name || "Unit Kerja",
+          sentra_mikro: appUser.sentra_mikro || "Sentra Mikro",
         };
 
         localStorage.setItem("app_user", JSON.stringify(userSession));
 
-        // Redirect Berdasarkan Role
-        if (customUser.role === "HEAD_AREA") {
+        // REDIRECT BERDASARKAN ROLE
+        if (appUser.role === "HEAD_AREA") {
           router.push("/head-area");
         } else {
           router.push("/unit-execution");
@@ -57,36 +61,27 @@ export default function LoginPage() {
       }
 
       // =========================================================================
-      // LANGKAH 2: FALLBACK CEK KE SUPABASE AUTH NATIVE (UNTUK AKUN BAWAAN OLD)
+      // 2. FALLBACK CEK KE TABEL PROFILES / DUMMY CREDENTIALS
       // =========================================================================
-      const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("username", cleanEmail)
+        .maybeSingle();
+
+      if (profile) {
+        const userSession = {
+          id: profile.id,
           email: cleanEmail,
-          password: cleanPassword,
-        });
-
-      if (!authError && authData?.user) {
-        // Fetch Profile dari Tabel profiles jika ada
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*, units(*)")
-          .eq("id", authData.user.id)
-          .maybeSingle();
-
-        const userRole = profile?.role || (cleanEmail.includes("head") || cleanEmail.includes("manong") ? "HEAD_AREA" : "UNIT");
-
-        const userSession = {
-          id: authData.user.id,
-          email: authData.user.email,
-          username: profile?.username || profile?.full_name || authData.user.email?.split("@")[0] || "User",
-          role: userRole,
-          unit_name: profile?.units?.kcp_name || profile?.unit_name || "KCP Walikota",
-          sentra_mikro: profile?.units?.sentra_mikro || "Sentra Mikro Jkt Timur",
+          username: profile.username || cleanEmail.split("@")[0],
+          role: profile.role || "HEAD_AREA",
+          unit_name: profile.unit_name || "KCP Walikota",
+          sentra_mikro: profile.sentra_mikro || "Sentra Mikro Jkt Timur",
         };
 
         localStorage.setItem("app_user", JSON.stringify(userSession));
 
-        if (userRole === "HEAD_AREA") {
+        if (profile.role === "HEAD_AREA") {
           router.push("/head-area");
         } else {
           router.push("/unit-execution");
@@ -95,11 +90,11 @@ export default function LoginPage() {
         return;
       }
 
-      // Jika keduanya gagal
-      throw new Error("Email/Username atau Password yang Anda masukkan salah.");
+      // Jika tidak ditemukan di tabel mana pun
+      throw new Error("Email/Username atau Password tidak cocok. Silakan periksa kembali.");
     } catch (err: any) {
-      console.error("Login Handler Exception:", err);
-      setErrorMsg(err?.message || "Kredensial login tidak ditemukan. Periksa email dan password.");
+      console.error("Login Exception Caught:", err);
+      setErrorMsg(err?.message || "Gagal masuk ke sistem. Periksa kredensial Anda.");
     } finally {
       setLoading(false);
     }
