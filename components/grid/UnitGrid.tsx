@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { ColDef, CellValueChangedEvent } from "ag-grid-community";
 
@@ -48,7 +48,11 @@ export function UnitGrid({
   const [rows, setRows] = useState<GridRowData[]>(rowData);
   const [savingStatus, setSavingStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
-  // Definisi Kolom Dengan Label Baru (MUH -> UNIT)
+  useEffect(() => {
+    setRows(rowData);
+  }, [rowData]);
+
+  // Definisi Kolom Dengan Label Baru (MUH -> UNIT) & Explicit cellStyle CSSProperties
   const columnDefs = useMemo<ColDef<GridRowData>[]>(
     () => [
       {
@@ -56,49 +60,49 @@ export function UnitGrid({
         field: "no_urut",
         width: 70,
         editable: false,
-        cellStyle: { textAlign: "center", backgroundColor: "#0f172a", color: "#94a3b8" },
+        cellStyle: { textAlign: "center", backgroundColor: "#0f172a", color: "#94a3b8" } as const,
       },
       {
         headerName: "Kantor Cabang",
         field: "kc_name",
         width: 180,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" },
+        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
       },
       {
         headerName: "KCP",
         field: "kcp_name",
         width: 180,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" },
+        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
       },
       {
         headerName: "Sentra Mikro",
         field: "sentra_mikro",
         width: 160,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" },
+        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
       },
       {
         headerName: "UNIT",
         field: "muh_name",
         width: 160,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" },
+        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
       },
       {
         headerName: "Status UNIT",
         field: "muh_status",
         width: 130,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" },
+        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
       },
       {
         headerName: "Analis Mikro",
         field: "analis_mikro",
         width: 160,
         editable: false,
-        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" },
+        cellStyle: { backgroundColor: "#0f172a", color: "#94a3b8" } as const,
       },
       {
         headerName: "Nama SM *",
