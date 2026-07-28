@@ -4,6 +4,12 @@ import React, { useEffect, useState, useCallback } from "react";
 import { ExecutionGrid, ExecutionRowData } from "@/components/grid/ExecutionGrid";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { getTodayDateString, formatDateID } from "@/lib/utils";
+import { createClient } from "@supabase/supabase-js";
+
+// Inisialisasi Supabase Client untuk Realtime Subscription
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function HeadExecutionPage() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
@@ -22,7 +28,6 @@ export default function HeadExecutionPage() {
   }, []);
 
   const fetchConsolidatedExecutions = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await fetch(`/api/executions?date=${selectedDate}`);
       const result = await res.json();
@@ -61,7 +66,27 @@ export default function HeadExecutionPage() {
   }, [selectedDate]);
 
   useEffect(() => {
+    setLoading(true);
     fetchConsolidatedExecutions();
+
+    // =========================================================================
+    // SUPABASE REALTIME LISTENER (LIVE SYNC TANPA REFRES/F5)
+    // =========================================================================
+    const channel = supabase
+      .channel("realtime_head_executions")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "executions" },
+        () => {
+          // Begitu ada transaksi baru/update dari unit mana pun, tarik data baru secara live
+          fetchConsolidatedExecutions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchConsolidatedExecutions]);
 
   // Handle Filtering Real-Time
@@ -81,12 +106,12 @@ export default function HeadExecutionPage() {
 
   const totalPlafonArea = filteredData.reduce((acc, curr) => acc + (Number(curr.plafon) || 0), 0);
   const totalNettBookingArea = filteredData.reduce((acc, curr) => acc + (Number(curr.nett_booking) || 0), 0);
-  const totalDebitur = filteredData.filter((r) => r.nama_debitur).length;
+  const totalDebitur = filteredData.filter((r) => r.nama_debitur && r.nama_debitur !== "-").length;
 
   const formatRupiah = (val: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val);
 
-  // GENERATOR SPREADSHEET EXCEL NATIVE BERKOLOM RAPIH (PERSIS GAMBAR 3)
+  // GENERATOR SPREADSHEET EXCEL NATIVE BERKOLOM RAPIH
   const handleExportExcel = () => {
     if (filteredData.length === 0) {
       alert("Tidak ada data eksekusi untuk diexport.");
@@ -176,28 +201,25 @@ export default function HeadExecutionPage() {
     document.body.removeChild(link);
   };
 
-  // Handle Cetak Print Resmi Laporan Perbankan
   const handlePrint = () => {
     window.print();
   };
 
   return (
     <div className="w-full space-y-5 pb-8">
-      {/* ==================================================================== */}
-      {/* 1. TAMPILAN DASHBOARD WEB (DILINDUNGI DARI EFFECT CETAK PRINT)       */}
-      {/* ==================================================================== */}
+      {/* 1. TAMPILAN DASHBOARD WEB */}
       <div className="print:hidden space-y-5">
         {/* Page Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-mono text-rose-400 mb-1">
-              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span>
+              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span> • <span className="text-emerald-400 animate-pulse">⚡ LIVE REALTIME SYNC</span>
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-100">
               Rekap Data Eksekusi Seluruh Area
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Konsolidasi rekapitulasi data debitur eksekusi, line proses, plafon, dan nett booking dari 17 Unit Area.
+              Konsolidasi rekapitulasi data debitur eksekusi, line proses, plafon, dan nett booking secara otomatis tanpa perlu merefresh.
             </p>
           </div>
 
@@ -289,8 +311,11 @@ export default function HeadExecutionPage() {
         {/* Grid Container Read-Only */}
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-xl">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wide">
-              📋 Tabel Rekapitulasi Data Eksekusi Area (Read-Only)
+            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2">
+              <span>📋 Tabel Rekapitulasi Data Eksekusi Area (Read-Only)</span>
+              <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-mono">
+                LIVE REALTIME
+              </span>
             </h3>
             <span className="text-[11px] font-mono text-slate-400">
               Tanggal Laporan: <span className="text-rose-400">{formatDateID(selectedDate)}</span>
@@ -315,9 +340,7 @@ export default function HeadExecutionPage() {
         </div>
       </div>
 
-      {/* ==================================================================== */}
-      {/* 2. TABEL KHUSUS CETAK PRINT / PDF (BERSIH DARI ELEMEN UI & SCROLLBAR) */}
-      {/* ==================================================================== */}
+      {/* 2. TABEL KHUSUS CETAK PRINT / PDF */}
       <div className="print-only-container">
         <div style={{ textAlign: "center", marginBottom: "15px" }}>
           <h2 style={{ margin: "0", fontSize: "16pt", textTransform: "uppercase" }}>{appName}</h2>
