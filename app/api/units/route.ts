@@ -30,7 +30,7 @@ export async function GET() {
   }
 }
 
-// POST: Save/Insert New Unit + Auto Create Login User Credentials
+// POST: Save/Insert New Unit + Auto Create Login User Credentials (CLEAN PAYLOAD VERSION)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
     const supabase = getSupabaseClient();
 
-    // 1. Sanitasi Payload Unit (Mencegah nilai NULL pada kolom NOT NULL PostgreSQL)
+    // 1. Sanitasi Payload Unit (Murni kolom dasar tabel units tanpa updated_at)
     const unitPayload = {
       kc_name: String(kc_name || "Walikota Jakarta Timur").trim(),
       kcp_name: String(kcp_name || "-").trim(),
@@ -56,7 +56,6 @@ export async function POST(req: Request) {
       muh_name: String(muh_name || "-").trim(),
       muh_status: String(muh_status || "Tetap").trim(),
       analis_mikro: String(analis_mikro || "-").trim(),
-      updated_at: new Date().toISOString(),
     };
 
     let savedUnit: any = null;
@@ -88,7 +87,7 @@ export async function POST(req: Request) {
       savedUnit = data && data[0] ? data[0] : unitPayload;
     }
 
-    // 2. Registrasi / Upsert Credentials Akun Login di app_users
+    // 2. Registrasi Credentials Akun Login di app_users
     if (username && password) {
       const cleanUsername = String(username).toLowerCase().trim();
       const cleanPassword = String(password).trim();
@@ -108,7 +107,6 @@ export async function POST(req: Request) {
               unit_id: savedUnit.id || null,
               unit_name: unitPayload.kcp_name,
               sentra_mikro: unitPayload.sentra_mikro,
-              updated_at: new Date().toISOString(),
             })
             .eq("id", existingUser.id);
         } else {
@@ -120,8 +118,6 @@ export async function POST(req: Request) {
               unit_id: savedUnit.id || null,
               unit_name: unitPayload.kcp_name,
               sentra_mikro: unitPayload.sentra_mikro,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
             },
           ]);
         }
