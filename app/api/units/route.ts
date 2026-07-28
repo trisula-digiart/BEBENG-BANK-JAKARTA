@@ -19,11 +19,13 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
+      console.error("Fetch units error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ data: data || [] }, { status: 200 });
   } catch (err: any) {
+    console.error("GET units internal error:", err);
     return NextResponse.json({ error: err?.message || "Internal Server Error" }, { status: 500 });
   }
 }
@@ -74,12 +76,13 @@ export async function POST(req: Request) {
     }
 
     if (unitResult.error) {
+      console.error("Save unit error:", unitResult.error);
       return NextResponse.json({ error: unitResult.error.message }, { status: 500 });
     }
 
     const savedUnit = unitResult.data;
 
-    // 2. Jika pembuatan Unit Baru dan Menyertakan Username Email & Password -> Buat Akun User
+    // 2. Jika Unit Baru & Ada Credentials -> Simpan ke app_users
     if (!id && username && password) {
       const userPayload = {
         username: username.toLowerCase().trim(),
@@ -91,12 +94,16 @@ export async function POST(req: Request) {
         created_at: new Date().toISOString(),
       };
 
-      // Simpan credentials ke tabel app_users
-      await supabase.from("app_users").insert([userPayload]);
+      const userInsert = await supabase.from("app_users").insert([userPayload]);
+      if (userInsert.error) {
+        console.warn("App user creation warning:", userInsert.error);
+        // Tetap kembalikan unit berhasil meski user sudah ada/warning
+      }
     }
 
     return NextResponse.json({ data: savedUnit }, { status: 200 });
   } catch (err: any) {
+    console.error("POST units internal error:", err);
     return NextResponse.json({ error: err?.message || "Internal Server Error" }, { status: 500 });
   }
 }
@@ -115,11 +122,13 @@ export async function DELETE(req: Request) {
     const { error } = await supabase.from("units").delete().eq("id", id);
 
     if (error) {
+      console.error("Delete unit error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err: any) {
+    console.error("DELETE units internal error:", err);
     return NextResponse.json({ error: err?.message || "Internal Server Error" }, { status: 500 });
   }
 }
