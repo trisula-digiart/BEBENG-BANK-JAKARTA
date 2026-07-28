@@ -166,7 +166,7 @@ export default function LoginPage() {
         </form>
 
         <div className="text-center text-[11px] text-slate-500 pt-2 border-t border-slate-800/60">
-          Protected by Enterprise Supabase Row Level Security
+          Protected by K2C KOMPUTINDO : The Intelligence of Logic
         </div>
       </div>
     </div>
