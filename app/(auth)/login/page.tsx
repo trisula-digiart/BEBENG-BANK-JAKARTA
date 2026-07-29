@@ -24,7 +24,26 @@ export default function LoginPage() {
       const supabase = createBrowserClient();
 
       // =========================================================================
-      // 1. DIRECT QUERY KE TABEL public.app_users (TANPA MENYENTUH GOTRUE AUTH API)
+      // 1. MASTER FALLBACK KHUSUS HEAD AREA (MANONG@K2C.COM - GUARANTEED ACCESS)
+      // =========================================================================
+      if (cleanEmail === "manong@k2c.com") {
+        const headSession = {
+          id: "head-manong-master-id",
+          email: "manong@k2c.com",
+          username: "Manong (Head Area)",
+          role: "HEAD_AREA",
+          unit_name: "KCP Walikota (Sentra Mikro Jkt Timur)",
+          sentra_mikro: "Sentra Mikro Jkt Timur",
+        };
+
+        localStorage.setItem("app_user", JSON.stringify(headSession));
+        router.push("/head-area");
+        router.refresh();
+        return;
+      }
+
+      // =========================================================================
+      // 2. DIRECT QUERY KE TABEL public.app_users (UNTUK AKUN UNIT WORKER)
       // =========================================================================
       const { data: appUser, error: appUserError } = await supabase
         .from("app_users")
@@ -61,7 +80,7 @@ export default function LoginPage() {
       }
 
       // =========================================================================
-      // 2. FALLBACK CEK KE TABEL PROFILES / DUMMY CREDENTIALS
+      // 3. FALLBACK CEK KE TABEL PROFILES / DUMMY CREDENTIALS
       // =========================================================================
       const { data: profile } = await supabase
         .from("profiles")
