@@ -101,29 +101,34 @@ export default function HeadExecutionPage() {
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Logika Penyaringan Fleksibel (Anti Menghilangkan Data)
+  // Logika Penyaringan Safe Type-Checking (Fix Build Vercel)
   useEffect(() => {
     let result = [...allData];
 
     if (selectedSentra !== "ALL") {
       result = result.filter(
         (item) =>
-          item.nama_sentra.toLowerCase().trim() === selectedSentra.toLowerCase().trim()
+          (item.nama_sentra ?? "").toLowerCase().trim() === selectedSentra.toLowerCase().trim()
       );
     }
 
     if (selectedMuh !== "ALL") {
       result = result.filter(
         (item) =>
-          item.nama_muh.toLowerCase().trim() === selectedMuh.toLowerCase().trim()
+          (item.nama_muh ?? "").toLowerCase().trim() === selectedMuh.toLowerCase().trim()
       );
     }
 
     setFilteredData(result);
   }, [selectedSentra, selectedMuh, allData]);
 
-  const sentraOptions = Array.from(new Set(allData.map((d) => d.nama_sentra))).filter(Boolean);
-  const muhOptions = Array.from(new Set(allData.map((d) => d.nama_muh))).filter(Boolean);
+  const sentraOptions = Array.from(
+    new Set(allData.map((d) => d.nama_sentra).filter((s): s is string => Boolean(s)))
+  );
+  
+  const muhOptions = Array.from(
+    new Set(allData.map((d) => d.nama_muh).filter((m): m is string => Boolean(m)))
+  );
 
   const totalPlafonArea = filteredData.reduce((acc, curr) => acc + (Number(curr.plafon) || 0), 0);
   const totalNettBookingArea = filteredData.reduce((acc, curr) => acc + (Number(curr.nett_booking) || 0), 0);
