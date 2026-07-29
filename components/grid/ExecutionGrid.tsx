@@ -42,7 +42,6 @@ export interface ExecutionGridProps {
 
 const UNIT_PERSISTENT_STORAGE_KEY = "BANK_EMOK_PERSISTENT_GRID_CACHE_V3";
 
-// Input Sel Seamless agar Navigasi TAB Lancar & Fokus Kursor Tidak Hilang
 function SeamlessCellInput({
   value,
   onChange,
@@ -114,7 +113,6 @@ export function ExecutionGrid({
     }
   };
 
-  // Fetch Data Eksekusi dari API Supabase Cloud
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
@@ -122,7 +120,6 @@ export function ExecutionGrid({
     }
     setLoading(true);
 
-    // 1. Ambil cache lokal dulu agar tampilan instant saat F5
     try {
       const savedLocal = localStorage.getItem(UNIT_PERSISTENT_STORAGE_KEY);
       if (savedLocal) {
@@ -135,7 +132,6 @@ export function ExecutionGrid({
       console.error("Error reading local storage cache", e);
     }
 
-    // 2. Ambil snapshot data paling baru dari Supabase Cloud
     try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, {
@@ -182,7 +178,6 @@ export function ExecutionGrid({
     fetchExecutions();
   }, [fetchExecutions]);
 
-  // Tambah Baris Eksekusi
   const handleAddRow = () => {
     const nextNoUrut = rows.length + 1;
     const newRow: ExecutionRowData = {
@@ -217,7 +212,6 @@ export function ExecutionGrid({
     }
   };
 
-  // Handle Perubahan Sel
   const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
     setInternalRows((prev) => {
       const updated = [...prev];
@@ -234,11 +228,9 @@ export function ExecutionGrid({
     }
   };
 
-  // Auto Save Langsung ke Supabase Cloud
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
-      // Jika id adalah ID temporer ('temp_...'), kirim null/undefined agar API melakukan INSERT
       const cleanId =
         rowToSave.id && rowToSave.id.startsWith("temp_") ? undefined : rowToSave.id;
 

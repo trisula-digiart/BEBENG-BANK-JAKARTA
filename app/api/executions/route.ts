@@ -6,7 +6,6 @@ export const revalidate = 0;
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  // Utamakan Service Role Key jika ada untuk bypass RLS, fallback ke Anon Key
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -89,8 +88,8 @@ export async function POST(req: Request) {
     // Susun Payload Bersih
     const cleanPayload: any = {
       no_urut: Number(no_urut) || 1,
-      nama_sentra: String(nama_sentra || "bekasi").trim(),
-      nama_muh: String(nama_muh || "susanti").trim(),
+      nama_sentra: String(nama_sentra || "bekasi").trim().toLowerCase(),
+      nama_muh: String(nama_muh || "susanti").trim().toLowerCase(),
       nama_sm: String(nama_sm || "-").trim(),
       nama_debitur: String(nama_debitur || "-").trim(),
       bidang_usaha: String(bidang_usaha || "-").trim(),
@@ -99,17 +98,15 @@ export async function POST(req: Request) {
       line_proses: String(line_proses || "SM").trim(),
       plafon: isNaN(Number(plafon)) ? 0 : Number(plafon),
       nett_booking: isNaN(Number(nett_booking)) ? 0 : Number(nett_booking),
-      tgl_cair: String(tgl_cair || "29/07/2026"),
-      periode_bulan: "7/2026",
+      tgl_cair: String(tgl_cair || "29/07/2026").trim(),
       qris: String(qris || "").trim(),
       jakone_abank: String(jakone_abank || "").trim(),
       jakone_mobile: String(jakone_mobile || "").trim(),
       edc: String(edc || "").trim(),
       keterangan: String(keterangan || "COLLECT DATA").trim(),
-      created_at: new Date().toISOString(),
     };
 
-    // Jika unit_id adalah valid UUID, sertakan
+    // Pengecekan UUID unit_id valid
     const isUnitUUID =
       unit_id &&
       typeof unit_id === "string" &&
@@ -118,16 +115,15 @@ export async function POST(req: Request) {
       cleanPayload.unit_id = unit_id;
     }
 
-    let resultRecord: any = null;
+    let savedResult: any = null;
 
-    // Cek apakah ID bawaan adalah UUID valid dari Supabase
+    // Pengecekan UUID Record ID valid
     const isRecordUUID =
       id &&
       typeof id === "string" &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
     if (isRecordUUID) {
-      // Jalankan UPDATE
       const { data: updateData, error: updateError } = await supabase
         .from("executions")
         .update(cleanPayload)
@@ -135,21 +131,20 @@ export async function POST(req: Request) {
         .select();
 
       if (!updateError && updateData && updateData.length > 0) {
-        resultRecord = updateData[0];
+        savedResult = updateData[0];
       }
     }
 
-    // Jika belum ter-update (record baru), lakukan INSERT
-    if (!resultRecord) {
+    if (!savedResult) {
       const { data: insertData, error: insertError } = await supabase
         .from("executions")
-        .insert([cleanPayload])
+        .insert([{ ...cleanPayload, created_at: new Date().toISOString() }])
         .select();
 
       if (insertError) {
         console.error("Insert error Supabase Cloud:", insertError);
         
-        // Retry tanpa unit_id jika terjadi error constraint
+        // Retry tanpa unit_id jika terjadi FK constraint error
         delete cleanPayload.unit_id;
         const { data: retryData, error: retryError } = await supabase
           .from("executions")
@@ -157,7 +152,7 @@ export async function POST(req: Request) {
           .select();
 
         if (!retryError && retryData && retryData[0]) {
-          resultRecord = retryData[0];
+          savedResult = retryData[0];
         } else {
           console.error("Retry insert failed:", retryError);
           return NextResponse.json(
@@ -166,13 +161,13 @@ export async function POST(req: Request) {
           );
         }
       } else {
-        resultRecord = insertData && insertData[0] ? insertData[0] : cleanPayload;
+        savedResult = insertData && insertData[0] ? insertData[0] : cleanPayload;
       }
     }
 
-    return NextResponse.json({ data: resultRecord, success: true }, { status: 200 });
+    return NextResponse.json({ data: savedResult, success: true }, { status: 200 });
   } catch (err: any) {
-    console.error("POST execution exception:", err);
+    console.error("POST execution exception handled:", err);
     return NextResponse.json({ success: false }, { status: 200 });
   }
 }
