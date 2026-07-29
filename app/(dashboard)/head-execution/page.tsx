@@ -11,7 +11,6 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function HeadExecutionPage() {
-  // 1. AUTO RESET DATE TO TODAY DATE ON MOUNT
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [allData, setAllData] = useState<ExecutionRowData[]>([]);
   const [filteredData, setFilteredData] = useState<ExecutionRowData[]>([]);
@@ -19,7 +18,7 @@ export default function HeadExecutionPage() {
   const [appName, setAppName] = useState<string>("Bank Daily Report");
   const [isMounted, setIsMounted] = useState<boolean>(false);
 
-  // State Filter
+  // State Filter (Default ALL untuk menampilkan seluruh unit secara terbuka)
   const [selectedSentra, setSelectedSentra] = useState<string>("ALL");
   const [selectedMuh, setSelectedMuh] = useState<string>("ALL");
 
@@ -32,7 +31,7 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Consolidated Executions (Rentang 1 Bulan Berjalan Anti-Cache)
+  // Fetch Consolidated Executions (Memanggil Seluruh Inputan Unit Tanpa Ada Terbuang)
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
       const timestamp = Date.now();
@@ -49,8 +48,8 @@ export default function HeadExecutionPage() {
         const mappedRows: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
-          nama_sentra: item.nama_sentra || item.units?.sentra_mikro || "Sentra Mikro",
-          nama_muh: item.nama_muh || item.units?.muh_name || "MUH Unit",
+          nama_sentra: item.nama_sentra || "Sentra Mikro",
+          nama_muh: item.nama_muh || "MUH Unit",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -69,7 +68,6 @@ export default function HeadExecutionPage() {
         }));
 
         setAllData(mappedRows);
-        setFilteredData(mappedRows);
       }
     } catch (err) {
       console.error("Gagal mengambil konsolidasi eksekusi:", err);
@@ -82,7 +80,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // DUAL-ENGINE REALTIME SYNC (CHANNEL UTAMA)
+    // DUAL-ENGINE REALTIME SYNC (CHANNEL UTAMA LISTENER HASIL INPUT UNIT)
     const channel = supabase
       .channel("realtime_head_executions_channel")
       .on(
@@ -96,7 +94,7 @@ export default function HeadExecutionPage() {
 
     const pollInterval = setInterval(() => {
       fetchConsolidatedExecutions();
-    }, 5000);
+    }, 3000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -104,7 +102,7 @@ export default function HeadExecutionPage() {
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Handle Filtering Real-Time
+  // Handle Filtering Real-Time Multiverse
   useEffect(() => {
     let result = allData;
     if (selectedSentra !== "ALL") {
@@ -236,13 +234,13 @@ export default function HeadExecutionPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-mono text-rose-400 mb-1">
-              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span> • <span className="text-emerald-400 animate-pulse">⚡ LIVE REALTIME (RETENSI 1 BULAN)</span>
+              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span> • <span className="text-emerald-400 animate-pulse">⚡ LIVE REALTIME (KONSOLIDASI GLOBAL)</span>
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-100">
               Rekap Data Eksekusi Seluruh Area
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Konsolidasi rekapitulasi data debitur eksekusi bulan berjalan. Data bertahan 1 bulan penuh dan otomatis terarsip pada bulan baru.
+              Konsolidasi rekapitulasi data debitur eksekusi bulan berjalan seluruh unit cabang. Data tersimpan otomatis dan sinkron secara realtime.
             </p>
           </div>
 
@@ -335,9 +333,9 @@ export default function HeadExecutionPage() {
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-xl">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2">
-              <span>📋 Tabel Rekapitulasi Eksekusi Area (Rekap Bulan Berjalan)</span>
+              <span>📋 Tabel Rekapitulasi Eksekusi Area (Konsolidasi Global All Unit)</span>
               <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-mono">
-                LIVE REALTIME
+                LIVE REALTIME ACTIVE
               </span>
             </h3>
             <span className="text-[11px] font-mono text-slate-400">
