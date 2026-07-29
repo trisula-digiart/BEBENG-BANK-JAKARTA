@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { getTodayDateString } from "@/lib/utils";
 
 export interface ExecutionRowData {
@@ -40,12 +40,7 @@ export interface ExecutionGridProps {
   readOnly?: boolean;
 }
 
-function sanitizeUUID(val?: string): string | null {
-  if (!val || typeof val !== "string") return null;
-  const cleaned = val.trim();
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(cleaned) ? cleaned : null;
-}
+const LOCAL_STORAGE_KEY = "BANK_EMOK_EXECUTION_CACHE_V2";
 
 export function ExecutionGrid({
   unitId,
@@ -63,46 +58,96 @@ export function ExecutionGrid({
 
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
-  const activeUnitId = sanitizeUUID(unitId);
 
+  // Ref untuk menyimpan timer debounce auto-save per row
+  const saveTimeoutRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
+
+  // 1. Fetch Data dari API & LocalStorage Fallback (Anti-Hilang saat Refresh)
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
       return;
     }
     setLoading(true);
+
+    // Ambil cache lokal dulu agar tampilan cepat & anti-kosong
+    let cachedData: ExecutionRowData[] = [];
     try {
-      const url = activeUnitId 
-        ? `/api/executions?unit_id=${activeUnitId}&date=${reportDate}`
-        : `/api/executions?date=${reportDate}`;
-        
-      const res = await fetch(url);
+      const local = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (local) {
+        cachedData = JSON.parse(local);
+        if (Array.isArray(cachedData) && cachedData.length > 0) {
+          setInternalRows(cachedData);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to read local cache", e);
+    }
+
+    try {
+      const timestamp = Date.now();
+      const res = await fetch(`/api/executions?_t=${timestamp}`, { cache: "no-store" });
       const result = await res.json();
-      if (res.ok && Array.isArray(result.data)) {
-        setInternalRows(result.data);
+
+      if (res.ok && Array.isArray(result.data) && result.data.length > 0) {
+        const mappedApi: ExecutionRowData[] = result.data.map((item: any) => ({
+          id: item.id,
+          no_urut: item.no_urut,
+          unit_id: item.unit_id,
+          nama_sentra: item.nama_sentra || sentraName || "bekasi",
+          nama_muh: item.nama_muh || muhName || "susanti",
+          nama_sm: item.nama_sm || "",
+          nama_debitur: item.nama_debitur || "",
+          bidang_usaha: item.bidang_usaha || "",
+          no_tabungan: item.no_tabungan || "",
+          no_pinjaman: item.no_pinjaman || "",
+          line_proses: item.line_proses || "SM",
+          plafon: Number(item.plafon) || 0,
+          nett_booking: Number(item.nett_booking) || 0,
+          tgl_cair: item.tgl_cair || reportDate,
+          periode_bulan: item.periode_bulan || "7/2026",
+          qris: item.qris || "",
+          jakone_abank: item.jakone_abank || "",
+          jakone_mobile: item.jakone_mobile || "",
+          edc: item.edc || "",
+          keterangan: item.keterangan || "",
+        }));
+
+        setInternalRows(mappedApi);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mappedApi));
       }
     } catch (err) {
       console.error("Failed to fetch execution rows:", err);
     } finally {
       setLoading(false);
     }
-  }, [activeUnitId, reportDate, rowData]);
+  }, [reportDate, rowData, sentraName, muhName]);
 
   useEffect(() => {
     fetchExecutions();
   }, [fetchExecutions]);
 
+  // Sync internalRows ke LocalStorage setiap kali ada perubahan
+  const updateLocalCache = (newRows: ExecutionRowData[]) => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newRows));
+    } catch (e) {
+      console.error("Error saving cache", e);
+    }
+  };
+
+  // Tambah Baris Baru
   const handleAddRow = () => {
     const nextNoUrut = rows.length + 1;
     const newRow: ExecutionRowData = {
       id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       no_urut: nextNoUrut,
-      unit_id: activeUnitId || undefined,
+      unit_id: unitId,
       report_date: reportDate,
-      nama_sentra: sentraName || "Sentra Mikro Jkt Timur",
-      nama_muh: muhName || "MUH Unit",
-      nama_sm: "-",
-      nama_debitur: "-",
+      nama_sentra: sentraName || "bekasi",
+      nama_muh: muhName || "susanti",
+      nama_sm: "",
+      nama_debitur: "",
       bidang_usaha: "-",
       no_tabungan: "-",
       no_pinjaman: "-",
@@ -110,7 +155,7 @@ export function ExecutionGrid({
       plafon: 0,
       nett_booking: 0,
       tgl_cair: reportDate,
-      periode_bulan: `${new Date().getMonth() + 1}/${new Date().getFullYear()}`,
+      periode_bulan: "7/2026",
       qris: "",
       jakone_abank: "",
       jakone_mobile: "",
@@ -119,30 +164,52 @@ export function ExecutionGrid({
     };
 
     if (!rowData) {
-      setInternalRows((prev) => [...prev, newRow]);
+      const updated = [...internalRows, newRow];
+      setInternalRows(updated);
+      updateLocalCache(updated);
+      autoSaveRow(newRow, updated.length - 1);
     }
   };
 
+  // Handle Perubahan Sel (Mencegah Re-render Radikal agar Kursor Tidak Loncat)
   const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
-    const updatedRows = [...rows];
-    updatedRows[index] = { ...updatedRows[index], [field]: value, no_urut: index + 1 };
-    
-    if (!rowData) {
-      setInternalRows(updatedRows);
-      autoSaveRow(updatedRows[index], index);
-    } else if (onSaveRow) {
-      onSaveRow(updatedRows[index]);
+    setInternalRows((prev) => {
+      const updated = [...prev];
+      if (updated[index]) {
+        updated[index] = { ...updated[index], [field]: value };
+        updateLocalCache(updated);
+      }
+      return updated;
+    });
+
+    if (onSaveRow) {
+      const current = { ...rows[index], [field]: value };
+      onSaveRow(current);
+    } else {
+      // Debounce Auto Save (Tunggu 800ms setelah user berhenti mengetik agar server tidak dibombardir)
+      if (saveTimeoutRef.current[index]) {
+        clearTimeout(saveTimeoutRef.current[index]);
+      }
+
+      saveTimeoutRef.current[index] = setTimeout(() => {
+        setInternalRows((latest) => {
+          if (latest[index]) {
+            autoSaveRow(latest[index], index);
+          }
+          return latest;
+        });
+      }, 800);
     }
   };
 
+  // Auto Save ke Backend API
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
       const payload = {
         ...rowToSave,
-        unit_id: activeUnitId,
-        nama_sentra: rowToSave.nama_sentra || sentraName || "Sentra Mikro Jkt Timur",
-        nama_muh: rowToSave.nama_muh || muhName || "MUH Unit",
+        nama_sentra: rowToSave.nama_sentra || sentraName || "bekasi",
+        nama_muh: rowToSave.nama_muh || muhName || "susanti",
         no_urut: rowToSave.no_urut || rowIndex + 1,
       };
 
@@ -157,11 +224,13 @@ export function ExecutionGrid({
       if (res.ok && result.data) {
         setInternalRows((prev) => {
           const newRows = [...prev];
-          newRows[rowIndex] = { 
-            ...newRows[rowIndex], 
-            id: result.data.id || newRows[rowIndex].id, 
-            no_urut: result.data.no_urut || rowIndex + 1 
-          };
+          if (newRows[rowIndex]) {
+            newRows[rowIndex] = { 
+              ...newRows[rowIndex], 
+              id: result.data.id || newRows[rowIndex].id 
+            };
+            updateLocalCache(newRows);
+          }
           return newRows;
         });
         setSaveStatus("✓ Tersimpan!");
@@ -171,7 +240,7 @@ export function ExecutionGrid({
     } catch (err) {
       setSaveStatus("✓ Tersimpan!");
     } finally {
-      setTimeout(() => setSaveStatus(""), 2500);
+      setTimeout(() => setSaveStatus(""), 2000);
     }
   };
 
@@ -185,7 +254,11 @@ export function ExecutionGrid({
         }
       }
       if (!rowData) {
-        setInternalRows((prev) => prev.filter((_, i) => i !== index));
+        setInternalRows((prev) => {
+          const updated = prev.filter((_, i) => i !== index);
+          updateLocalCache(updated);
+          return updated;
+        });
       }
     }
   };
@@ -202,8 +275,8 @@ export function ExecutionGrid({
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
           <span className="text-[10px] font-mono text-slate-400 uppercase block">SENTRA MIKRO</span>
-          <span className="text-sm font-bold text-slate-100 block mt-0.5">{sentraName || "Sentra Mikro Jkt Timur"}</span>
-          <span className="text-[10px] text-slate-500 block">MUH: {muhName || "Budi Santoso"}</span>
+          <span className="text-sm font-bold text-slate-100 block mt-0.5">{sentraName || "bekasi"}</span>
+          <span className="text-[10px] text-slate-500 block">MUH: {muhName || "susanti"}</span>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
@@ -259,8 +332,8 @@ export function ExecutionGrid({
             <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800 text-[10px]">
               <tr>
                 <th className="p-2 border-r border-slate-800 w-8">NO</th>
-                <th className="p-2 border-r border-slate-800 min-w-[130px]">NAMA SENTRA</th>
-                <th className="p-2 border-r border-slate-800 min-w-[120px]">NAMA MUH</th>
+                <th className="p-2 border-r border-slate-800 min-w-[120px]">NAMA SENTRA</th>
+                <th className="p-2 border-r border-slate-800 min-w-[110px]">NAMA MUH</th>
                 <th className="p-2 border-r border-slate-800 min-w-[120px]">NAMA SM</th>
                 <th className="p-2 border-r border-slate-800 min-w-[140px]">NAMA DEBITUR</th>
                 <th className="p-2 border-r border-slate-800 min-w-[110px]">BIDANG USAHA</th>
@@ -280,7 +353,7 @@ export function ExecutionGrid({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-sans text-slate-200 text-xs">
-              {loading ? (
+              {loading && rows.length === 0 ? (
                 <tr>
                   <td colSpan={19} className="text-center py-8 text-slate-500 font-mono">
                     Memuat data eksekusi debitur...
@@ -296,8 +369,8 @@ export function ExecutionGrid({
                 rows.map((row, idx) => (
                   <tr key={row.id || idx} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-2 border-r border-slate-800 font-mono text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "Sentra Mikro Jkt Timur"}</td>
-                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "Budi Santoso"}</td>
+                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "bekasi"}</td>
+                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "susanti"}</td>
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">
@@ -395,7 +468,7 @@ export function ExecutionGrid({
                     {/* Input TGL CAIR */}
                     <td className="p-1 border-r border-slate-800">
                       <input
-                        type="date"
+                        type="text"
                         disabled={isReadOnly}
                         value={row.tgl_cair || ""}
                         onChange={(e) => handleCellChange(idx, "tgl_cair", e.target.value)}
