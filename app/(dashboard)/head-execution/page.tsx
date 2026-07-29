@@ -9,6 +9,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+const UNIT_PERSISTENT_STORAGE_KEY = "BANK_EMOK_PERSISTENT_GRID_CACHE_V3";
+
 export default function HeadExecutionPage() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [allData, setAllData] = useState<ExecutionRowData[]>([]);
@@ -30,8 +32,24 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Consolidated Executions Realtime
+  // Fetch Consolidated Executions Realtime (Supabase + Local Cache Fallback)
   const fetchConsolidatedExecutions = useCallback(async () => {
+    let combinedData: ExecutionRowData[] = [];
+
+    // 1. Dapatkan cache lokal sebagai pertahanan awal agar instant jika Supabase delayed
+    try {
+      const savedLocal = localStorage.getItem(UNIT_PERSISTENT_STORAGE_KEY);
+      if (savedLocal) {
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          combinedData = parsed;
+        }
+      }
+    } catch (e) {
+      console.error("Gagal membaca storage cache lokal:", e);
+    }
+
+    // 2. Tarik data dari API Backend Supabase
     try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, {
@@ -43,7 +61,7 @@ export default function HeadExecutionPage() {
       });
       const result = await res.json();
 
-      if (res.ok && Array.isArray(result.data)) {
+      if (res.ok && Array.isArray(result.data) && result.data.length > 0) {
         const mappedRows: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
@@ -66,11 +84,21 @@ export default function HeadExecutionPage() {
           keterangan: item.keterangan || "",
         }));
 
-        setAllData(mappedRows);
+        // Gabungkan data API & Local Storage tanpa duplikat
+        const apiMap = new Map();
+        mappedRows.forEach((item) => apiMap.set(item.id || item.nama_debitur, item));
+        combinedData.forEach((item) => {
+          if (!apiMap.has(item.id || item.nama_debitur)) {
+            apiMap.set(item.id || item.nama_debitur, item);
+          }
+        });
+
+        combinedData = Array.from(apiMap.values());
       }
     } catch (err) {
-      console.error("Gagal mengambil konsolidasi eksekusi:", err);
+      console.error("Gagal mengambil konsolidasi eksekusi dari API:", err);
     } finally {
+      setAllData(combinedData);
       setLoading(false);
     }
   }, []);
@@ -95,9 +123,18 @@ export default function HeadExecutionPage() {
       fetchConsolidatedExecutions();
     }, 1000);
 
+    // Broadcast Listener antar tab browser
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === UNIT_PERSISTENT_STORAGE_KEY) {
+        fetchConsolidatedExecutions();
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, [fetchConsolidatedExecutions]);
 
@@ -309,7 +346,7 @@ export default function HeadExecutionPage() {
 
         {/* Maximize Grid Height Area */}
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-2 shadow-2xl">
-          {loading ? (
+          {loading && filteredData.length === 0 ? (
             <div className="flex h-96 items-center justify-center text-xs text-slate-400">
               <div className="flex items-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
