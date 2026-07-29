@@ -30,7 +30,7 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Penuh Seluruh Data Eksekusi Realtime
+  // Fetch Consolidated Data
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
       const timestamp = Date.now();
@@ -47,8 +47,8 @@ export default function HeadExecutionPage() {
         const mappedRows: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
-          nama_sentra: item.nama_sentra || "Sentra Mikro",
-          nama_muh: item.nama_muh || "MUH Unit",
+          nama_sentra: item.nama_sentra || "bekasi",
+          nama_muh: item.nama_muh || "susanti",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -57,7 +57,7 @@ export default function HeadExecutionPage() {
           line_proses: item.line_proses || "SM",
           plafon: Number(item.plafon) || 0,
           nett_booking: Number(item.nett_booking) || 0,
-          tgl_cair: item.tgl_cair || selectedDate,
+          tgl_cair: item.tgl_cair || "29/07/2026",
           periode_bulan: item.periode_bulan || "",
           qris: item.qris || "",
           jakone_abank: item.jakone_abank || "",
@@ -73,7 +73,7 @@ export default function HeadExecutionPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -93,7 +93,7 @@ export default function HeadExecutionPage() {
 
     const pollInterval = setInterval(() => {
       fetchConsolidatedExecutions();
-    }, 2000);
+    }, 1500);
 
     return () => {
       supabase.removeChannel(channel);

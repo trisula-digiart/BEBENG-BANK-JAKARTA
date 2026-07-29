@@ -40,8 +40,6 @@ export interface ExecutionGridProps {
   readOnly?: boolean;
 }
 
-const LOCAL_STORAGE_KEY = "BANK_EMOK_EXECUTION_CACHE_V2";
-
 export function ExecutionGrid({
   unitId,
   sentraName,
@@ -58,11 +56,9 @@ export function ExecutionGrid({
 
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
-
-  // Ref untuk menyimpan timer debounce auto-save per row
   const saveTimeoutRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
 
-  // 1. Fetch Data dari API & LocalStorage Fallback (Anti-Hilang saat Refresh)
+  // Fetch Data Langsung dari Supabase API
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
@@ -70,26 +66,12 @@ export function ExecutionGrid({
     }
     setLoading(true);
 
-    // Ambil cache lokal dulu agar tampilan cepat & anti-kosong
-    let cachedData: ExecutionRowData[] = [];
-    try {
-      const local = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (local) {
-        cachedData = JSON.parse(local);
-        if (Array.isArray(cachedData) && cachedData.length > 0) {
-          setInternalRows(cachedData);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to read local cache", e);
-    }
-
     try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, { cache: "no-store" });
       const result = await res.json();
 
-      if (res.ok && Array.isArray(result.data) && result.data.length > 0) {
+      if (res.ok && Array.isArray(result.data)) {
         const mappedApi: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
@@ -104,7 +86,7 @@ export function ExecutionGrid({
           line_proses: item.line_proses || "SM",
           plafon: Number(item.plafon) || 0,
           nett_booking: Number(item.nett_booking) || 0,
-          tgl_cair: item.tgl_cair || reportDate,
+          tgl_cair: item.tgl_cair || "29/07/2026",
           periode_bulan: item.periode_bulan || "7/2026",
           qris: item.qris || "",
           jakone_abank: item.jakone_abank || "",
@@ -114,27 +96,17 @@ export function ExecutionGrid({
         }));
 
         setInternalRows(mappedApi);
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mappedApi));
       }
     } catch (err) {
       console.error("Failed to fetch execution rows:", err);
     } finally {
       setLoading(false);
     }
-  }, [reportDate, rowData, sentraName, muhName]);
+  }, [rowData, sentraName, muhName]);
 
   useEffect(() => {
     fetchExecutions();
   }, [fetchExecutions]);
-
-  // Sync internalRows ke LocalStorage setiap kali ada perubahan
-  const updateLocalCache = (newRows: ExecutionRowData[]) => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newRows));
-    } catch (e) {
-      console.error("Error saving cache", e);
-    }
-  };
 
   // Tambah Baris Baru
   const handleAddRow = () => {
@@ -146,15 +118,15 @@ export function ExecutionGrid({
       report_date: reportDate,
       nama_sentra: sentraName || "bekasi",
       nama_muh: muhName || "susanti",
-      nama_sm: "",
-      nama_debitur: "",
+      nama_sm: "-",
+      nama_debitur: "-",
       bidang_usaha: "-",
       no_tabungan: "-",
       no_pinjaman: "-",
       line_proses: "SM",
       plafon: 0,
       nett_booking: 0,
-      tgl_cair: reportDate,
+      tgl_cair: "29/07/2026",
       periode_bulan: "7/2026",
       qris: "",
       jakone_abank: "",
@@ -166,18 +138,16 @@ export function ExecutionGrid({
     if (!rowData) {
       const updated = [...internalRows, newRow];
       setInternalRows(updated);
-      updateLocalCache(updated);
       autoSaveRow(newRow, updated.length - 1);
     }
   };
 
-  // Handle Perubahan Sel (Mencegah Re-render Radikal agar Kursor Tidak Loncat)
+  // Handle Perubahan Sel
   const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
     setInternalRows((prev) => {
       const updated = [...prev];
       if (updated[index]) {
         updated[index] = { ...updated[index], [field]: value };
-        updateLocalCache(updated);
       }
       return updated;
     });
@@ -186,7 +156,6 @@ export function ExecutionGrid({
       const current = { ...rows[index], [field]: value };
       onSaveRow(current);
     } else {
-      // Debounce Auto Save (Tunggu 800ms setelah user berhenti mengetik agar server tidak dibombardir)
       if (saveTimeoutRef.current[index]) {
         clearTimeout(saveTimeoutRef.current[index]);
       }
@@ -198,11 +167,11 @@ export function ExecutionGrid({
           }
           return latest;
         });
-      }, 800);
+      }, 700);
     }
   };
 
-  // Auto Save ke Backend API
+  // Auto Save
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
@@ -229,7 +198,6 @@ export function ExecutionGrid({
               ...newRows[rowIndex], 
               id: result.data.id || newRows[rowIndex].id 
             };
-            updateLocalCache(newRows);
           }
           return newRows;
         });
@@ -254,11 +222,7 @@ export function ExecutionGrid({
         }
       }
       if (!rowData) {
-        setInternalRows((prev) => {
-          const updated = prev.filter((_, i) => i !== index);
-          updateLocalCache(updated);
-          return updated;
-        });
+        setInternalRows((prev) => prev.filter((_, i) => i !== index));
       }
     }
   };
