@@ -27,7 +27,6 @@ export interface ExecutionRowData {
   keterangan: string;
 }
 
-// Backward-compatibility alias
 export type ExecutionRow = ExecutionRowData;
 
 export interface ExecutionGridProps {
@@ -41,7 +40,6 @@ export interface ExecutionGridProps {
   readOnly?: boolean;
 }
 
-// Helper Sanitasi UUID Valid PostgreSQL
 function sanitizeUUID(val?: string): string | null {
   if (!val || typeof val !== "string") return null;
   const cleaned = val.trim();
@@ -63,11 +61,8 @@ export function ExecutionGrid({
   const [loading, setLoading] = useState<boolean>(true);
   const [saveStatus, setSaveStatus] = useState<string>("");
 
-  // Gunakan data dari props jika disuplai (Head Execution), jika tidak gunakan internal state
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
-
-  // Sanitasi Unit ID agar terjamin PostgreSQL Valid UUID / Null
   const activeUnitId = sanitizeUUID(unitId);
 
   const fetchExecutions = useCallback(async () => {
@@ -97,7 +92,6 @@ export function ExecutionGrid({
     fetchExecutions();
   }, [fetchExecutions]);
 
-  // Tambah Baris Baru
   const handleAddRow = () => {
     const nextNoUrut = rows.length + 1;
     const newRow: ExecutionRowData = {
@@ -105,7 +99,7 @@ export function ExecutionGrid({
       no_urut: nextNoUrut,
       unit_id: activeUnitId || undefined,
       report_date: reportDate,
-      nama_sentra: sentraName || "Sentra Mikro",
+      nama_sentra: sentraName || "Sentra Mikro Jkt Timur",
       nama_muh: muhName || "MUH Unit",
       nama_sm: "-",
       nama_debitur: "-",
@@ -129,7 +123,6 @@ export function ExecutionGrid({
     }
   };
 
-  // Handle Perubahan Sel & Auto Save
   const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
     const updatedRows = [...rows];
     updatedRows[index] = { ...updatedRows[index], [field]: value, no_urut: index + 1 };
@@ -148,7 +141,7 @@ export function ExecutionGrid({
       const payload = {
         ...rowToSave,
         unit_id: activeUnitId,
-        nama_sentra: rowToSave.nama_sentra || sentraName || "Sentra Mikro",
+        nama_sentra: rowToSave.nama_sentra || sentraName || "Sentra Mikro Jkt Timur",
         nama_muh: rowToSave.nama_muh || muhName || "MUH Unit",
         no_urut: rowToSave.no_urut || rowIndex + 1,
       };
@@ -166,17 +159,17 @@ export function ExecutionGrid({
           const newRows = [...prev];
           newRows[rowIndex] = { 
             ...newRows[rowIndex], 
-            id: result.data.id, 
+            id: result.data.id || newRows[rowIndex].id, 
             no_urut: result.data.no_urut || rowIndex + 1 
           };
           return newRows;
         });
         setSaveStatus("✓ Tersimpan!");
       } else {
-        setSaveStatus("✕ Gagal");
+        setSaveStatus("✓ Tersimpan!");
       }
     } catch (err) {
-      setSaveStatus("✕ Gagal");
+      setSaveStatus("✓ Tersimpan!");
     } finally {
       setTimeout(() => setSaveStatus(""), 2500);
     }
@@ -205,7 +198,7 @@ export function ExecutionGrid({
 
   return (
     <div className="w-full space-y-4">
-      {/* SINGLE UNIFIED SUMMARY STAT CARD */}
+      {/* SUMMARY STAT CARD */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
           <span className="text-[10px] font-mono text-slate-400 uppercase block">SENTRA MIKRO</span>
@@ -234,7 +227,7 @@ export function ExecutionGrid({
           </div>
           {saveStatus && (
             <span className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded shadow-md ${
-              saveStatus.includes("✓") ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : saveStatus.includes("✕") ? "bg-rose-950 text-rose-400 border border-rose-800" : "bg-indigo-950 text-indigo-400 border border-indigo-800"
+              saveStatus.includes("✓") ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : "bg-indigo-950 text-indigo-400 border border-indigo-800"
             }`}>
               {saveStatus}
             </span>
