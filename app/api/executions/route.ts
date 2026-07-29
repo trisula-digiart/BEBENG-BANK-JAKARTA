@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -9,7 +10,7 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// GET: Ambil SELURUH Data Eksekusi Langsung dari Supabase Cloud
+// GET: Ambil SELURUH Data Eksekusi Langsung dari Supabase Cloud (Tanpa Cache)
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -23,13 +24,27 @@ export async function GET() {
       console.error("GET executions Supabase error:", error);
       return NextResponse.json(
         { data: [] },
-        { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+        {
+          status: 200,
+          headers: {
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+          },
+        }
       );
     }
 
     return NextResponse.json(
       { data: data || [] },
-      { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          "Pragma": "no-cache",
+          "Expires": "0",
+        },
+      }
     );
   } catch (err: any) {
     console.error("GET executions exception:", err);
@@ -37,7 +52,7 @@ export async function GET() {
   }
 }
 
-// POST: Simpan Persisten ke Database Supabase Cloud (Garansi Masuk DB)
+// POST: Simpan Persisten ke Database Supabase Cloud (Safe Insert)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -65,7 +80,7 @@ export async function POST(req: Request) {
       keterangan,
     } = body;
 
-    // Bersihkan payload dari nilai null/undefined berbahaya
+    // Bersihkan payload
     const payload: any = {
       no_urut: Number(no_urut) || 1,
       nama_sentra: String(nama_sentra || "bekasi").trim(),
@@ -88,17 +103,18 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     };
 
-    // Sertakan unit_id hanya jika merupakan string non-kosong
-    if (unit_id && typeof unit_id === "string" && unit_id.trim() !== "") {
-      payload.unit_id = unit_id.trim();
+    // Validasi UUID unit_id agar tidak bentrok dengan Foreign Key Supabase
+    const isUnitUUID = unit_id && typeof unit_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(unit_id);
+    if (isUnitUUID) {
+      payload.unit_id = unit_id;
     }
 
     let savedData: any = null;
 
-    // Pengecekan UUID Supabase Valid
-    const isUUID = id && typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+    // Validasi UUID Record ID
+    const isRecordUUID = id && typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
-    if (isUUID) {
+    if (isRecordUUID) {
       const { data, error } = await supabase
         .from("executions")
         .update(payload)
@@ -117,8 +133,7 @@ export async function POST(req: Request) {
         .select();
 
       if (error) {
-        console.error("Insert execution DB error:", error);
-        // Fallback jika unit_id memicu FK constraint error: coba tanpa unit_id
+        console.error("Insert error Supabase (Retrying without unit_id):", error);
         delete payload.unit_id;
         const { data: retryData, error: retryErr } = await supabase
           .from("executions")
@@ -128,6 +143,7 @@ export async function POST(req: Request) {
         if (!retryErr && retryData && retryData[0]) {
           savedData = retryData[0];
         } else {
+          console.error("Retry insert failed:", retryErr);
           return NextResponse.json({ data: { id: `temp-${Date.now()}`, ...payload }, success: false }, { status: 200 });
         }
       } else {

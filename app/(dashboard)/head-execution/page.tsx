@@ -17,7 +17,7 @@ export default function HeadExecutionPage() {
   const [appName, setAppName] = useState<string>("Bank Daily Report");
   const [isMounted, setIsMounted] = useState<boolean>(false);
 
-  // Filter State
+  // Filter State (Default ALL agar semua data dari unit langsung tampil)
   const [selectedSentra, setSelectedSentra] = useState<string>("ALL");
   const [selectedMuh, setSelectedMuh] = useState<string>("ALL");
 
@@ -47,8 +47,8 @@ export default function HeadExecutionPage() {
         const mappedRows: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
-          nama_sentra: String(item.nama_sentra || "bekasi").trim(),
-          nama_muh: String(item.nama_muh || "susanti").trim(),
+          nama_sentra: item.nama_sentra ? String(item.nama_sentra).trim() : "bekasi",
+          nama_muh: item.nama_muh ? String(item.nama_muh).trim() : "susanti",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -101,18 +101,18 @@ export default function HeadExecutionPage() {
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Logika Penyaringan Toleran
+  // Logika Penyaringan Presisi & Toleran
   useEffect(() => {
     let result = [...allData];
 
-    if (selectedSentra !== "ALL") {
+    if (selectedSentra && selectedSentra !== "ALL") {
       result = result.filter(
         (item) =>
           (item.nama_sentra ?? "").toLowerCase().trim() === selectedSentra.toLowerCase().trim()
       );
     }
 
-    if (selectedMuh !== "ALL") {
+    if (selectedMuh && selectedMuh !== "ALL") {
       result = result.filter(
         (item) =>
           (item.nama_muh ?? "").toLowerCase().trim() === selectedMuh.toLowerCase().trim()
@@ -309,7 +309,7 @@ export default function HeadExecutionPage() {
 
         {/* Maximize Grid Height Area */}
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-2 shadow-2xl">
-          {loading && filteredData.length === 0 ? (
+          {loading && allData.length === 0 ? (
             <div className="flex h-96 items-center justify-center text-xs text-slate-400">
               <div className="flex items-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
