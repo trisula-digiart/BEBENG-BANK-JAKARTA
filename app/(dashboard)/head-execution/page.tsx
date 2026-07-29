@@ -43,8 +43,8 @@ export default function HeadExecutionPage() {
         const mappedRows: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
-          nama_sentra: item.nama_sentra ? String(item.nama_sentra).trim() : "cikarang",
-          nama_muh: item.nama_muh ? String(item.nama_muh).trim() : "andi",
+          nama_sentra: item.nama_sentra ? String(item.nama_sentra).trim() : "-",
+          nama_muh: item.nama_muh ? String(item.nama_muh).trim() : "-",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -53,7 +53,7 @@ export default function HeadExecutionPage() {
           line_proses: item.line_proses || "SM",
           plafon: Number(item.plafon) || 0,
           nett_booking: Number(item.nett_booking) || 0,
-          tgl_cair: item.tgl_cair || "29/07/2026",
+          tgl_cair: item.tgl_cair || "",
           periode_bulan: item.periode_bulan || "",
           qris: item.qris || "",
           jakone_abank: item.jakone_abank || "",
@@ -122,11 +122,11 @@ export default function HeadExecutionPage() {
   }, [selectedSentra, selectedMuh, allData]);
 
   const sentraOptions = Array.from(
-    new Set(allData.map((d) => d.nama_sentra).filter((s): s is string => Boolean(s)))
+    new Set(allData.map((d) => d.nama_sentra).filter((s): s is string => Boolean(s) && s !== "-"))
   );
   
   const muhOptions = Array.from(
-    new Set(allData.map((d) => d.nama_muh).filter((m): m is string => Boolean(m)))
+    new Set(allData.map((d) => d.nama_muh).filter((m): m is string => Boolean(m) && m !== "-"))
   );
 
   const totalPlafonArea = filteredData.reduce((acc, curr) => acc + (Number(curr.plafon) || 0), 0);

@@ -121,18 +121,6 @@ export function ExecutionGrid({
     setLoading(true);
 
     try {
-      const savedLocal = localStorage.getItem(UNIT_PERSISTENT_STORAGE_KEY);
-      if (savedLocal) {
-        const parsed = JSON.parse(savedLocal);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setInternalRows(parsed);
-        }
-      }
-    } catch (e) {
-      console.error("Error reading local storage cache", e);
-    }
-
-    try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, {
         cache: "no-store",
@@ -140,13 +128,13 @@ export function ExecutionGrid({
       });
       const result = await res.json();
 
-      if (res.ok && Array.isArray(result.data) && result.data.length > 0) {
+      if (res.ok && Array.isArray(result.data)) {
         const mappedApi: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
           unit_id: item.unit_id,
-          nama_sentra: item.nama_sentra || sentraName || "cikarang",
-          nama_muh: item.nama_muh || muhName || "andi",
+          nama_sentra: item.nama_sentra || sentraName || "-",
+          nama_muh: item.nama_muh || muhName || "-",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -155,8 +143,8 @@ export function ExecutionGrid({
           line_proses: item.line_proses || "SM",
           plafon: Number(item.plafon) || 0,
           nett_booking: Number(item.nett_booking) || 0,
-          tgl_cair: item.tgl_cair || "29/07/2026",
-          periode_bulan: item.periode_bulan || "7/2026",
+          tgl_cair: item.tgl_cair || "",
+          periode_bulan: item.periode_bulan || "",
           qris: item.qris || "",
           jakone_abank: item.jakone_abank || "",
           jakone_mobile: item.jakone_mobile || "",
@@ -172,11 +160,54 @@ export function ExecutionGrid({
     } finally {
       setLoading(false);
     }
-  }, [rowData, sentraName, muhName, readOnly]);
+  }, [rowData, sentraName, muhName]);
 
   useEffect(() => {
     fetchExecutions();
   }, [fetchExecutions]);
+
+  const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
+    setSaveStatus("💾 Menyimpan...");
+    try {
+      const cleanId =
+        rowToSave.id && rowToSave.id.startsWith("temp_") ? undefined : rowToSave.id;
+
+      const payload = {
+        ...rowToSave,
+        id: cleanId,
+        unit_id: unitId || rowToSave.unit_id,
+        nama_sentra: sentraName || rowToSave.nama_sentra || "cikarang",
+        nama_muh: muhName || rowToSave.nama_muh || "andi",
+        no_urut: rowToSave.no_urut || rowIndex + 1,
+      };
+
+      const res = await fetch("/api/executions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+
+      if (res.ok && result.data && result.data.id && result.success !== false) {
+        setInternalRows((prev) => {
+          const newRows = [...prev];
+          if (newRows[rowIndex]) {
+            newRows[rowIndex].id = result.data.id;
+            saveToLocalCache(newRows);
+          }
+          return newRows;
+        });
+        setSaveStatus("✓ Tersimpan DB!");
+      } else {
+        setSaveStatus("⚠️ Gagal DB (Lokal Saja)");
+      }
+    } catch (err) {
+      setSaveStatus("⚠️ Gagal DB");
+    } finally {
+      setTimeout(() => setSaveStatus(""), 3000);
+    }
+  };
 
   const handleAddRow = () => {
     const nextNoUrut = rows.length + 1;
@@ -195,8 +226,8 @@ export function ExecutionGrid({
       line_proses: "SM",
       plafon: 0,
       nett_booking: 0,
-      tgl_cair: "29/07/2026",
-      periode_bulan: "7/2026",
+      tgl_cair: getTodayDateString(),
+      periode_bulan: `${new Date().getMonth() + 1}/${new Date().getFullYear()}`,
       qris: "",
       jakone_abank: "",
       jakone_mobile: "",
@@ -225,49 +256,6 @@ export function ExecutionGrid({
 
     if (onSaveRow && rows[index]) {
       onSaveRow({ ...rows[index], [field]: value });
-    }
-  };
-
-  const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
-    setSaveStatus("💾 Menyimpan...");
-    try {
-      const cleanId =
-        rowToSave.id && rowToSave.id.startsWith("temp_") ? undefined : rowToSave.id;
-
-      const payload = {
-        ...rowToSave,
-        id: cleanId,
-        unit_id: unitId || rowToSave.unit_id,
-        nama_sentra: rowToSave.nama_sentra || sentraName || "cikarang",
-        nama_muh: rowToSave.nama_muh || muhName || "andi",
-        no_urut: rowToSave.no_urut || rowIndex + 1,
-      };
-
-      const res = await fetch("/api/executions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await res.json();
-
-      if (res.ok && result.data && result.data.id && result.success !== false) {
-        setInternalRows((prev) => {
-          const newRows = [...prev];
-          if (newRows[rowIndex]) {
-            newRows[rowIndex].id = result.data.id;
-            saveToLocalCache(newRows);
-          }
-          return newRows;
-        });
-        setSaveStatus("✓ Tersimpan DB!");
-      } else {
-        setSaveStatus("✓ Tersimpan!");
-      }
-    } catch (err) {
-      setSaveStatus("✓ Tersimpan!");
-    } finally {
-      setTimeout(() => setSaveStatus(""), 2000);
     }
   };
 
@@ -325,7 +313,7 @@ export function ExecutionGrid({
           </div>
           {saveStatus && (
             <span className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded shadow-md ${
-              saveStatus.includes("✓") ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : "bg-indigo-950 text-indigo-400 border border-indigo-800"
+              saveStatus.includes("✓") ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : "bg-rose-950 text-rose-400 border border-rose-800"
             }`}>
               {saveStatus}
             </span>
@@ -394,8 +382,8 @@ export function ExecutionGrid({
                 rows.map((row, idx) => (
                   <tr key={`row-${idx}`} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-2 border-r border-slate-800 font-mono text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "cikarang"}</td>
-                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "andi"}</td>
+                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "-"}</td>
+                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "-"}</td>
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">
