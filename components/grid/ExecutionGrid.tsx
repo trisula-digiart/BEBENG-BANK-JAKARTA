@@ -121,6 +121,18 @@ export function ExecutionGrid({
     setLoading(true);
 
     try {
+      const savedLocal = localStorage.getItem(UNIT_PERSISTENT_STORAGE_KEY);
+      if (savedLocal) {
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setInternalRows(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Error reading local storage cache", e);
+    }
+
+    try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, {
         cache: "no-store",
@@ -133,8 +145,8 @@ export function ExecutionGrid({
           id: item.id,
           no_urut: item.no_urut,
           unit_id: item.unit_id,
-          nama_sentra: item.nama_sentra || sentraName || "-",
-          nama_muh: item.nama_muh || muhName || "-",
+          nama_sentra: item.nama_sentra || sentraName || "cikarang",
+          nama_muh: item.nama_muh || muhName || "andi",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -169,8 +181,11 @@ export function ExecutionGrid({
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
+      // 1. Dilarang Mengirim ID Temporary ke API Backend untuk Mencegah Error 400
       const cleanId =
-        rowToSave.id && rowToSave.id.startsWith("temp_") ? undefined : rowToSave.id;
+        rowToSave.id && typeof rowToSave.id === "string" && rowToSave.id.startsWith("temp_")
+          ? undefined
+          : rowToSave.id;
 
       const payload = {
         ...rowToSave,
@@ -382,8 +397,8 @@ export function ExecutionGrid({
                 rows.map((row, idx) => (
                   <tr key={`row-${idx}`} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-2 border-r border-slate-800 font-mono text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "-"}</td>
-                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "-"}</td>
+                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "cikarang"}</td>
+                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "andi"}</td>
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">

@@ -20,7 +20,7 @@ function isValidUUID(str?: string | null): boolean {
   return uuidRegex.test(str);
 }
 
-// GET: Fetch Data
+// GET: Fetch Semua Data Eksekusi
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -42,17 +42,16 @@ export async function GET() {
   }
 }
 
-// POST: Ultra-Safe Insert/Update Engine
+// POST: Ultra-Robust Handler untuk Menjamin 200 Success
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const supabase = getSupabaseClient();
 
-    // Safe Date Formatter (Mencegah PostgreSQL Date Format Error)
+    // Sanitasi Tanggal
     const rawTglCair = body.tgl_cair ? String(body.tgl_cair).trim() : "";
     let cleanTglCair: string | null = null;
     if (rawTglCair && rawTglCair !== "-") {
-      // Jika format DD/MM/YYYY ubah ke YYYY-MM-DD
       if (rawTglCair.includes("/")) {
         const parts = rawTglCair.split("/");
         if (parts.length === 3) {
@@ -63,7 +62,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Pembersihan Payload Murni
+    // Persiapan Object DB Murni
     const payload: Record<string, any> = {
       nama_sentra: body.nama_sentra ? String(body.nama_sentra).trim() : "cikarang",
       nama_muh: body.nama_muh ? String(body.nama_muh).trim() : "andi",
@@ -98,7 +97,7 @@ export async function POST(req: Request) {
     let resultData: any = null;
 
     if (isValidUUID(body.id)) {
-      // UPDATE
+      // UPDATE EXIST
       const { data, error } = await supabase
         .from("executions")
         .update(payload)
@@ -111,7 +110,7 @@ export async function POST(req: Request) {
       }
       resultData = data && data[0] ? data[0] : { id: body.id, ...payload };
     } else {
-      // INSERT
+      // INSERT BARU (Abaikan 'id' temp agar Supabase otomatis buat UUID)
       const { data, error } = await supabase
         .from("executions")
         .insert([payload])
