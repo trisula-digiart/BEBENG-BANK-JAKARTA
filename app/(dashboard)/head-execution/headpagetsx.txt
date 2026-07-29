@@ -11,6 +11,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function HeadExecutionPage() {
+  // 1. AUTO RESET DATE TO TODAY DATE ON MOUNT
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [allData, setAllData] = useState<ExecutionRowData[]>([]);
   const [filteredData, setFilteredData] = useState<ExecutionRowData[]>([]);
@@ -24,13 +25,25 @@ export default function HeadExecutionPage() {
 
   useEffect(() => {
     setIsMounted(true);
+    // FORCE RESET TANGGAL LAPORAN KE HARI INI SETIAP KALI HALAMAN DIBUKA
+    const today = getTodayDateString();
+    setSelectedDate(today);
+
     const savedName = localStorage.getItem("APP_BANK_NAME");
     if (savedName) setAppName(savedName);
   }, []);
 
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
-      const res = await fetch(`/api/executions?date=${selectedDate}`, { cache: "no-store" });
+      // PERBAIKAN ANTI-CACHE: Tambahkan parameter timestamp agar data real-time cabang langsung masuk
+      const timestamp = Date.now();
+      const res = await fetch(`/api/executions?date=${selectedDate}&_t=${timestamp}`, {
+        cache: "no-store",
+        headers: {
+          "Pragma": "no-cache",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+      });
       const result = await res.json();
 
       if (res.ok && Array.isArray(result.data)) {
@@ -70,7 +83,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // DUAL-ENGINE REALTIME SYNC
+    // DUAL-ENGINE REALTIME SYNC (CHANNEL UTAMA)
     const channel = supabase
       .channel("realtime_head_executions_channel")
       .on(

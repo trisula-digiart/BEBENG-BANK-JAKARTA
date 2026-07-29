@@ -1,45 +1,68 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 
-export async function GET(request: Request) {
+export const dynamic = "force-dynamic";
+
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  return createClient(url, key);
+}
+
+// GET: Fetch Executions dengan Logika Retensi 1 Bulan Berjalan
+export async function GET(req: Request) {
   try {
-    const supabase = await createServerClient();
-    const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date");
+    const { searchParams } = new URL(req.url);
+    const dateParam = searchParams.get("date") || new Date().toISOString().split("T")[0];
     const unitId = searchParams.get("unit_id");
 
-    let query = supabase.from("unit_execution_reports").select("*, units(*)");
+    const supabase = getSupabaseClient();
 
-    if (date && date !== "undefined" && date !== "null") {
-      query = query.eq("report_date", date);
-    }
+    // Hitung Rentang Tanggal 1 Bulan Berjalan (Awal Bulan sampai Akhir Bulan)
+    const targetDate = new Date(dateParam);
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth(); // 0-indexed
 
-    // SANITASI KETAT PARAMETER UNIT_ID (Hanya filter jika UUID valid, bukan "undefined" / "null")
-    if (unitId && unitId !== "undefined" && unitId !== "null" && unitId.trim() !== "") {
+    const startDate = new Date(year, month, 1).toISOString().split("T")[0];
+    const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0];
+    const periodeBulanStr = `${month + 1}/${year}`; // Format "7/2026"
+
+    let query = supabase
+      .from("executions")
+      .select("*, units(*)")
+      .gte("tgl_cair", startDate)
+      .lte("tgl_cair", endDate)
+      .order("created_at", { ascending: true });
+
+    if (unitId) {
       query = query.eq("unit_id", unitId);
     }
 
-    const { data, error } = await query.order("no_urut", { ascending: true });
+    const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
+      console.error("GET executions DB error:", error);
+      return NextResponse.json({ data: [] }, { status: 200 });
+    }
 
-    return NextResponse.json({ success: true, data: data || [] });
-  } catch (error: any) {
-    console.error("GET Execution Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ data: data || [], periode_active: periodeBulanStr }, { status: 200 });
+  } catch (err: any) {
+    console.error("GET executions exception:", err);
+    return NextResponse.json({ data: [] }, { status: 200 });
   }
 }
 
-export async function POST(request: Request) {
+// POST: Save/Insert Data Eksekusi Unit
+export async function POST(req: Request) {
   try {
-    const supabase = await createServerClient();
-    const body = await request.json();
+    const body = await req.json();
+    const supabase = getSupabaseClient();
 
     const {
       id,
-      no_urut,
       unit_id,
-      report_date,
+      nama_sentra,
+      nama_muh,
       nama_sm,
       nama_debitur,
       bidang_usaha,
@@ -49,7 +72,6 @@ export async function POST(request: Request) {
       plafon,
       nett_booking,
       tgl_cair,
-      periode_bulan,
       qris,
       jakone_abank,
       jakone_mobile,
@@ -57,105 +79,59 @@ export async function POST(request: Request) {
       keterangan,
     } = body;
 
-    // Validasi unit_id wajib UUID valid
-    if (!unit_id || unit_id === "undefined" || unit_id === "null") {
-      return NextResponse.json({ success: false, error: "unit_id UUID valid wajib diisi." }, { status: 400 });
-    }
-
-    if (!report_date) {
-      return NextResponse.json({ success: false, error: "report_date wajib diisi." }, { status: 400 });
-    }
-
-    // Hitung no_urut otomatis jika tidak dikirim
-    let calculatedNoUrut = Number(no_urut) || 0;
-    if (!calculatedNoUrut || calculatedNoUrut <= 0) {
-      const { data: maxRows } = await supabase
-        .from("unit_execution_reports")
-        .select("no_urut")
-        .eq("unit_id", unit_id)
-        .eq("report_date", report_date)
-        .order("no_urut", { ascending: false })
-        .limit(1);
-
-      const maxNo = maxRows && maxRows.length > 0 ? maxRows[0].no_urut : 0;
-      calculatedNoUrut = (Number(maxNo) || 0) + 1;
-    }
-
-    // Sanitasi Tanggal Cair
-    const sanitizedTglCair = tgl_cair && tgl_cair.trim() !== "" ? tgl_cair : null;
+    const cairDate = tgl_cair || new Date().toISOString().split("T")[0];
+    const d = new Date(cairDate);
+    const periodeBulan = `${d.getMonth() + 1}/${d.getFullYear()}`;
 
     const payload = {
-      unit_id,
-      report_date,
-      no_urut: calculatedNoUrut,
+      unit_id: unit_id || null,
+      nama_sentra: nama_sentra || "Sentra Mikro Jkt Timur",
+      nama_muh: nama_muh || "MUH Unit",
       nama_sm: nama_sm || "-",
       nama_debitur: nama_debitur || "-",
       bidang_usaha: bidang_usaha || "-",
       no_tabungan: no_tabungan || "-",
       no_pinjaman: no_pinjaman || "-",
-      line_proses: line_proses || "BOOKING",
+      line_proses: line_proses || "SM",
       plafon: Number(plafon) || 0,
       nett_booking: Number(nett_booking) || 0,
-      tgl_cair: sanitizedTglCair,
-      periode_bulan: periode_bulan || "-",
+      tgl_cair: cairDate,
+      periode_bulan: periodeBulan,
       qris: qris || "",
       jakone_abank: jakone_abank || "",
       jakone_mobile: jakone_mobile || "",
       edc: edc || "",
-      keterangan: keterangan || "-",
-      updated_at: new Date().toISOString(),
+      keterangan: keterangan || "",
+      created_at: new Date().toISOString(),
     };
 
-    let resultData;
+    let savedData = null;
 
-    // Cek ID UUID asli Supabase
-    const isValidUUID = id && typeof id === "string" && !id.startsWith("temp_") && id.length > 20;
-
-    if (isValidUUID) {
+    if (id && !id.toString().startsWith("temp-")) {
       const { data, error } = await supabase
-        .from("unit_execution_reports")
+        .from("executions")
         .update(payload)
         .eq("id", id)
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
-      resultData = data;
+      savedData = data && data[0] ? data[0] : payload;
     } else {
       const { data, error } = await supabase
-        .from("unit_execution_reports")
+        .from("executions")
         .insert([payload])
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
-      resultData = data;
+      savedData = data && data[0] ? data[0] : payload;
     }
 
-    return NextResponse.json({ success: true, data: resultData });
-  } catch (error: any) {
-    console.error("POST Execution Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const supabase = await createServerClient();
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-
-    if (!id) {
-      return NextResponse.json({ success: false, error: "ID wajib disertakan." }, { status: 400 });
-    }
-
-    const { error } = await supabase.from("unit_execution_reports").delete().eq("id", id);
-
-    if (error) throw error;
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("DELETE Execution Error:", error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ data: savedData, success: true }, { status: 200 });
+  } catch (err: any) {
+    console.error("POST execution exception:", err);
+    return NextResponse.json(
+      { error: err?.message || "Gagal menyimpan data eksekusi" },
+      { status: 500 }
+    );
   }
 }

@@ -44,7 +44,6 @@ export default function UnitExecutionPage() {
       .then((res) => res.json())
       .then((result) => {
         if (result.data && Array.isArray(result.data)) {
-          // Cari unit yang benar-benar cocok dengan akun yang sedang login
           const matchedUnit = result.data.find(
             (unit: any) =>
               (userUnitName && unit.kcp_name?.toLowerCase().trim() === userUnitName.toLowerCase().trim()) ||
@@ -59,7 +58,6 @@ export default function UnitExecutionPage() {
               muh_name: matchedUnit.muh_name || "Petugas Unit",
             });
           } else if (userUnitName) {
-            // Jika unit baru belum ada di master units, gunakan info dari session user
             setUnitInfo({
               id: `user-unit-${userUnitName.replace(/\s+/g, "-").toLowerCase()}`,
               kcp_name: userUnitName,
@@ -97,18 +95,18 @@ export default function UnitExecutionPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-mono text-rose-400 mb-1">
-            <span>TABEL EKSEKUSI UNIT</span> • <span>{unitInfo.kcp_name}</span>
+            <span>TABEL EKSEKUSI UNIT</span> • <span>{unitInfo.kcp_name}</span> • <span className="text-emerald-400 font-bold">RETENSI BULAN BERJALAN</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-100">
             Data Eksekusi Debitur & Pencairan
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Input dan pantau rincian debitur eksekusi, line proses, plafon, nett booking, serta fasilitas pendukung.
+            Input dan pantau rincian debitur eksekusi bulan berjalan. Seluruh data bertahan 1 bulan penuh dan otomatis di-reset pada bulan baru.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">Tanggal Laporan:</span>
+          <span className="text-xs text-slate-400">Tanggal Transaksi:</span>
           <input
             type="date"
             value={reportDate}
@@ -118,7 +116,7 @@ export default function UnitExecutionPage() {
         </div>
       </div>
 
-      {/* Execution Grid Component dengan Unit ID Ter-Isolasi */}
+      {/* Execution Grid Component */}
       <ExecutionGrid
         unitId={unitInfo.id}
         sentraName={unitInfo.sentra_mikro}

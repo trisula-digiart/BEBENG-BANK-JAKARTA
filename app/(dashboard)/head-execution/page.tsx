@@ -25,7 +25,6 @@ export default function HeadExecutionPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    // FORCE RESET TANGGAL LAPORAN KE HARI INI SETIAP KALI HALAMAN DIBUKA
     const today = getTodayDateString();
     setSelectedDate(today);
 
@@ -33,9 +32,9 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
+  // Fetch Consolidated Executions (Rentang 1 Bulan Berjalan Anti-Cache)
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
-      // PERBAIKAN ANTI-CACHE: Tambahkan parameter timestamp agar data real-time cabang langsung masuk
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?date=${selectedDate}&_t=${timestamp}`, {
         cache: "no-store",
@@ -147,7 +146,7 @@ export default function HeadExecutionPage() {
       </head>
       <body>
         <h2>REKAPITULASI DATA EKSEKUSI AREA - ${appName.toUpperCase()}</h2>
-        <p><b>Tanggal Laporan:</b> ${formatDateID(selectedDate)} | <b>Filter Sentra:</b> ${selectedSentra} | <b>Filter MUH:</b> ${selectedMuh}</p>
+        <p><b>Periode Bulan:</b> ${formatDateID(selectedDate)} | <b>Filter Sentra:</b> ${selectedSentra} | <b>Filter MUH:</b> ${selectedMuh}</p>
         <table>
           <thead>
             <tr>
@@ -224,7 +223,7 @@ export default function HeadExecutionPage() {
     return (
       <div className="w-full h-64 flex items-center justify-center text-xs text-slate-400">
         <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent mr-2" />
-        Memuat konsolidasi rekap data eksekusi area...
+        Memuat konsolidasi rekap data eksekusi area bulan berjalan...
       </div>
     );
   }
@@ -237,18 +236,18 @@ export default function HeadExecutionPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-mono text-rose-400 mb-1">
-              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span> • <span className="text-emerald-400 animate-pulse">⚡ LIVE REALTIME ACTIVE</span>
+              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span> • <span className="text-emerald-400 animate-pulse">⚡ LIVE REALTIME (RETENSI 1 BULAN)</span>
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-100">
               Rekap Data Eksekusi Seluruh Area
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Konsolidasi rekapitulasi data debitur eksekusi, line proses, plafon, dan nett booking secara otomatis tanpa perlu merefresh.
+              Konsolidasi rekapitulasi data debitur eksekusi bulan berjalan. Data bertahan 1 bulan penuh dan otomatis terarsip pada bulan baru.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="text-xs font-medium text-slate-400">Pilih Tanggal:</label>
+            <label className="text-xs font-medium text-slate-400">Pilih Acuan Bulan:</label>
             <input
               type="date"
               value={selectedDate}
@@ -261,19 +260,19 @@ export default function HeadExecutionPage() {
         {/* Area Metrics Summary */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <StatCard
-            title="TOTAL DEBITUR EKSEKUSI AREA"
+            title="TOTAL DEBITUR BULAN BERJALAN"
             value={`${totalDebitur} Debitur`}
             description={formatDateID(selectedDate)}
             variant="info"
           />
           <StatCard
-            title="TOTAL PLAFON AREA"
+            title="TOTAL PLAFON BULAN BERJALAN"
             value={formatRupiah(totalPlafonArea)}
             description="Akumulasi Hasil Filter"
             variant="default"
           />
           <StatCard
-            title="TOTAL NETT BOOKING AREA"
+            title="TOTAL NETT BOOKING BULAN BERJALAN"
             value={formatRupiah(totalNettBookingArea)}
             description="Realisasi Booking Hasil Filter"
             variant="success"
@@ -336,13 +335,13 @@ export default function HeadExecutionPage() {
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-xl">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2">
-              <span>📋 Tabel Rekapitulasi Data Eksekusi Area (Read-Only)</span>
+              <span>📋 Tabel Rekapitulasi Eksekusi Area (Rekap Bulan Berjalan)</span>
               <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-mono">
                 LIVE REALTIME
               </span>
             </h3>
             <span className="text-[11px] font-mono text-slate-400">
-              Tanggal Laporan: <span className="text-rose-400">{formatDateID(selectedDate)}</span>
+              Acuan Periode: <span className="text-rose-400">{formatDateID(selectedDate)}</span>
             </span>
           </div>
 
@@ -368,9 +367,9 @@ export default function HeadExecutionPage() {
       <div className="print-only-container">
         <div style={{ textAlign: "center", marginBottom: "15px" }}>
           <h2 style={{ margin: "0", fontSize: "16pt", textTransform: "uppercase" }}>{appName}</h2>
-          <h3 style={{ margin: "5px 0 0 0", fontSize: "12pt" }}>LAPORAN REKAPITULASI DATA EKSEKUSI DEBITUR AREA</h3>
+          <h3 style={{ margin: "5px 0 0 0", fontSize: "12pt" }}>LAPORAN REKAPITULASI DATA EKSEKUSI DEBITUR AREA (BULAN BERJALAN)</h3>
           <p style={{ margin: "5px 0 0 0", fontSize: "10pt" }}>
-            Tanggal Laporan: <b>{formatDateID(selectedDate)}</b> | Filter Sentra: <b>{selectedSentra}</b> | Total Debitur: <b>{totalDebitur}</b>
+            Acuan Periode: <b>{formatDateID(selectedDate)}</b> | Filter Sentra: <b>{selectedSentra}</b> | Total Debitur: <b>{totalDebitur}</b>
           </p>
         </div>
 
