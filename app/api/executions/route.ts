@@ -9,51 +9,19 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// Helper untuk mendapatkan range tanggal awal dan akhir bulan berjalan
-function getMonthRange(dateString?: string) {
-  const now = dateString ? new Date(dateString) : new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  // Tanggal 1 bulan ini (Format YYYY-MM-DD)
-  const firstDay = new Date(year, month, 1);
-  const startDate = firstDay.toISOString().split("T")[0];
-
-  // Tanggal terakhir bulan ini (Format YYYY-MM-DD)
-  const lastDay = new Date(year, month + 1, 0);
-  const endDate = lastDay.toISOString().split("T")[0];
-
-  const periodeBulan = `${month + 1}/${year}`;
-
-  return { startDate, endDate, periodeBulan, year, month: month + 1 };
-}
-
-// GET: Penarikan Data Eksekusi dengan Retensi 1 Bulan Berjalan
-export async function GET(req: Request) {
+// GET: Ambil SELURUH Data Eksekusi dari Supabase Tanpa Terpotong
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url);
-    const targetDateParam = searchParams.get("date");
     const supabase = getSupabaseClient();
 
-    // Hitung range tanggal 1 bulan penuh berdasarkan acuan tanggal
-    const { startDate, endDate, periodeBulan } = getMonthRange(targetDateParam || undefined);
-
-    // Kueri Supabase: Ambil seluruh data eksekusi di bulan berjalan ini saja
     const { data, error } = await supabase
       .from("executions")
       .select("*")
-      .or(`periode_bulan.eq.${periodeBulan},and(created_at.gte.${startDate}T00:00:00.000Z,created_at.lte.${endDate}T23:59:59.999Z)`)
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("GET executions monthly retention error:", error);
-      // Fallback jika kueri rentang tanggal mengalami glitch RLS: Ambil seluruh data aktif
-      const { data: fallbackData } = await supabase
-        .from("executions")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      return NextResponse.json({ data: fallbackData || [] }, { status: 200 });
+      console.error("GET executions Supabase error:", error);
+      return NextResponse.json({ data: [] }, { status: 200 });
     }
 
     return NextResponse.json({ data: data || [] }, { status: 200 });
@@ -63,7 +31,7 @@ export async function GET(req: Request) {
   }
 }
 
-// POST: Simpan Data Eksekusi Unit (Tergabung dalam Retensi Bulan Berjalan)
+// POST: Simpan Persisten ke Supabase Cloud
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -91,8 +59,6 @@ export async function POST(req: Request) {
       keterangan,
     } = body;
 
-    const { periodeBulan } = getMonthRange(tgl_cair || undefined);
-
     const payload = {
       no_urut: Number(no_urut) || 1,
       unit_id: unit_id ? String(unit_id) : null,
@@ -106,8 +72,8 @@ export async function POST(req: Request) {
       line_proses: String(line_proses || "SM").trim(),
       plafon: isNaN(Number(plafon)) ? 0 : Number(plafon),
       nett_booking: isNaN(Number(nett_booking)) ? 0 : Number(nett_booking),
-      tgl_cair: String(tgl_cair || new Date().toISOString().split("T")[0]),
-      periode_bulan: periodeBulan,
+      tgl_cair: String(tgl_cair || "29/07/2026"),
+      periode_bulan: "7/2026",
       qris: String(qris || "").trim(),
       jakone_abank: String(jakone_abank || "").trim(),
       jakone_mobile: String(jakone_mobile || "").trim(),
@@ -118,6 +84,7 @@ export async function POST(req: Request) {
 
     let savedData: any = null;
 
+    // Cek apakah ID merupakan UUID valid Supabase
     const isUUID = id && typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
     if (isUUID) {
@@ -139,7 +106,7 @@ export async function POST(req: Request) {
         .select();
 
       if (error) {
-        console.error("Supabase Insert Error:", error);
+        console.error("Insert execution error Supabase:", error);
         return NextResponse.json({ data: { id: `temp-exec-${Date.now()}`, ...payload }, success: true }, { status: 200 });
       }
 
