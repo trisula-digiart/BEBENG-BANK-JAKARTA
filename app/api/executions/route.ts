@@ -6,6 +6,7 @@ export const revalidate = 0;
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  // Menggunakan Service Role Key jika ada untuk bypass RLS Supabase secara total
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -26,9 +27,9 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("GET executions Supabase error:", error);
+      console.error("GET executions Supabase Error:", error);
       return NextResponse.json(
-        { data: [] },
+        { data: [], error: error.message },
         {
           status: 200,
           headers: {
@@ -52,7 +53,7 @@ export async function GET() {
       }
     );
   } catch (err: any) {
-    console.error("GET executions exception:", err);
+    console.error("GET executions Exception:", err);
     return NextResponse.json({ data: [] }, { status: 200 });
   }
 }
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
       keterangan,
     } = body;
 
-    // Susun Payload Bersih (Dinamis dari Unit)
+    // Payload Minimalis & Aman dari Constraint Type Error
     const cleanPayload: any = {
       no_urut: Number(no_urut) || 1,
       nama_sentra: String(nama_sentra || "cikarang").trim().toLowerCase(),
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
       keterangan: String(keterangan || "COLLECT DATA").trim(),
     };
 
-    // Validasi UUID unit_id jika ada
+    // Sertakan unit_id hanya jika valid UUID
     const isUnitUUID =
       unit_id &&
       typeof unit_id === "string" &&
@@ -117,7 +118,7 @@ export async function POST(req: Request) {
 
     let savedResult: any = null;
 
-    // Validasi UUID Record ID jika update
+    // Pengecekan UUID Record ID jika UPDATE
     const isRecordUUID =
       id &&
       typeof id === "string" &&
@@ -135,6 +136,7 @@ export async function POST(req: Request) {
       }
     }
 
+    // Jika belum ter-update (record baru), lakukan INSERT
     if (!savedResult) {
       const { data: insertData, error: insertError } = await supabase
         .from("executions")
@@ -142,9 +144,9 @@ export async function POST(req: Request) {
         .select();
 
       if (insertError) {
-        console.error("Insert error Supabase Cloud:", insertError);
-        
-        // Fallback jika terjadi kesalahan FK unit_id
+        console.error("Insert Primary Error Supabase:", insertError);
+
+        // Fallback retry tanpa unit_id
         delete cleanPayload.unit_id;
         const { data: retryData, error: retryError } = await supabase
           .from("executions")
@@ -154,9 +156,9 @@ export async function POST(req: Request) {
         if (!retryError && retryData && retryData[0]) {
           savedResult = retryData[0];
         } else {
-          console.error("Retry insert failed:", retryError);
+          console.error("Retry Insert Error:", retryError);
           return NextResponse.json(
-            { data: { id: `temp-${Date.now()}`, ...cleanPayload }, success: false },
+            { data: { id: `temp-${Date.now()}`, ...cleanPayload }, success: false, error: retryError?.message },
             { status: 200 }
           );
         }
@@ -168,6 +170,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ data: savedResult, success: true }, { status: 200 });
   } catch (err: any) {
     console.error("POST execution exception handled:", err);
-    return NextResponse.json({ success: false }, { status: 200 });
+    return NextResponse.json({ success: false, error: err?.message }, { status: 200 });
   }
 }

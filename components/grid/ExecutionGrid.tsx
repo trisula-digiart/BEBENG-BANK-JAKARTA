@@ -251,7 +251,7 @@ export function ExecutionGrid({
 
       const result = await res.json();
 
-      if (res.ok && result.data && result.data.id) {
+      if (res.ok && result.data && result.data.id && result.success !== false) {
         setInternalRows((prev) => {
           const newRows = [...prev];
           if (newRows[rowIndex]) {
