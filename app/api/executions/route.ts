@@ -9,7 +9,7 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// GET: Ambil SELURUH Data Eksekusi (Diatur No-Cache Mutlak)
+// GET: Ambil SELURUH Data Eksekusi (No Cache Response Header)
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -37,7 +37,7 @@ export async function GET() {
   }
 }
 
-// POST: Simpan Data Persisten ke Database Supabase
+// POST: Simpan Persisten Data Eksekusi ke Database Supabase
 export async function POST(req: Request) {
   try {
     const body = await req.json();

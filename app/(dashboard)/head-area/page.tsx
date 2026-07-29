@@ -18,7 +18,11 @@ export default function HeadAreaDashboard() {
   const fetchAreaConsolidation = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/reports?date=${selectedDate}`);
+      const timestamp = Date.now();
+      const res = await fetch(`/api/reports?date=${selectedDate}&_t=${timestamp}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
+      });
       const result = await res.json();
 
       if (res.ok && Array.isArray(result.data)) {
@@ -35,7 +39,23 @@ export default function HeadAreaDashboard() {
 
   useEffect(() => {
     fetchAreaConsolidation();
-  }, [fetchAreaConsolidation]);
+
+    // Listener Realtime Penguncian Unit
+    const channel = supabase
+      .channel("realtime_lock_status_channel")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "unit_locks" },
+        () => {
+          fetchAreaConsolidation();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchAreaConsolidation, supabase]);
 
   // Toggle Lock Status Unit
   const handleToggleLock = async (unitId: string, currentLockState: boolean) => {
@@ -65,7 +85,7 @@ export default function HeadAreaDashboard() {
 
   const totalUnits = unitReports.length;
   const lockedUnitsCount = unitReports.filter((u) => u.is_locked).length;
-  const openUnitsCount = totalUnits - lockedUnitsCount;
+  const openUnitsCount = totalUnits > 0 ? totalUnits - lockedUnitsCount : 17;
 
   return (
     <div className="w-full space-y-6 pb-8">
@@ -79,7 +99,7 @@ export default function HeadAreaDashboard() {
             Konsolidasi & Control Penguncian Unit
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            Pantau status pengisian dan kunci laporan harian dari 17 unit area secara terpusat.
+            Pantau status pengisian dan kunci laporan harian dari unit area secara terpusat.
           </p>
         </div>
 
@@ -146,42 +166,50 @@ export default function HeadAreaDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {unitReports.map((item, idx) => (
-                  <tr key={item.id || idx} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="px-3.5 py-3 font-bold text-slate-100">{item.units?.kcp_name || "KCP Unit"}</td>
-                    <td className="px-3.5 py-3 text-slate-400">{item.units?.sentra_mikro || "Sentra"}</td>
-                    <td className="px-3.5 py-3 font-medium text-slate-200">{item.units?.muh_name || "MUH"}</td>
-                    <td className="px-3.5 py-3 text-slate-300">{item.units?.analis_mikro || "Analis"}</td>
-                    <td className="px-3.5 py-3">
-                      <span
-                        className={`px-2.5 py-1 rounded border text-[10px] font-mono font-bold ${
-                          item.is_locked
-                            ? "bg-rose-950 text-rose-400 border-rose-800"
-                            : "bg-emerald-950 text-emerald-400 border-emerald-800"
-                        }`}
-                      >
-                        {item.is_locked ? "🔒 TERKUNCI" : "🔓 TERBUKA"}
-                      </span>
-                    </td>
-                    <td className="px-3.5 py-3 text-right">
-                      <button
-                        onClick={() => handleToggleLock(item.unit_id, Boolean(item.is_locked))}
-                        disabled={lockingUnitId === item.unit_id}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                          item.is_locked
-                            ? "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500"
-                            : "bg-rose-600 hover:bg-rose-500 text-white border-rose-500"
-                        }`}
-                      >
-                        {lockingUnitId === item.unit_id
-                          ? "Proses..."
-                          : item.is_locked
-                          ? "Buka Kunci"
-                          : "Kunci Laporan"}
-                      </button>
+                {unitReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-6 text-slate-500">
+                      Tidak ada data status penguncian unit untuk tanggal ini.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  unitReports.map((item, idx) => (
+                    <tr key={item.id || idx} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="px-3.5 py-3 font-bold text-slate-100">{item.units?.kcp_name || "KCP Unit"}</td>
+                      <td className="px-3.5 py-3 text-slate-400">{item.units?.sentra_mikro || "Sentra"}</td>
+                      <td className="px-3.5 py-3 font-medium text-slate-200">{item.units?.muh_name || "MUH"}</td>
+                      <td className="px-3.5 py-3 text-slate-300">{item.units?.analis_mikro || "Analis"}</td>
+                      <td className="px-3.5 py-3">
+                        <span
+                          className={`px-2.5 py-1 rounded border text-[10px] font-mono font-bold ${
+                            item.is_locked
+                              ? "bg-rose-950 text-rose-400 border-rose-800"
+                              : "bg-emerald-950 text-emerald-400 border-emerald-800"
+                          }`}
+                        >
+                          {item.is_locked ? "🔒 TERKUNCI" : "🔓 TERBUKA"}
+                        </span>
+                      </td>
+                      <td className="px-3.5 py-3 text-right">
+                        <button
+                          onClick={() => handleToggleLock(item.unit_id, Boolean(item.is_locked))}
+                          disabled={lockingUnitId === item.unit_id}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                            item.is_locked
+                              ? "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500"
+                              : "bg-rose-600 hover:bg-rose-500 text-white border-rose-500"
+                          }`}
+                        >
+                          {lockingUnitId === item.unit_id
+                            ? "Proses..."
+                            : item.is_locked
+                            ? "Buka Kunci"
+                            : "Kunci Laporan"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

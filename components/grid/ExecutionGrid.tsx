@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { getTodayDateString } from "@/lib/utils";
 
 export interface ExecutionRowData {
@@ -40,7 +40,7 @@ export interface ExecutionGridProps {
   readOnly?: boolean;
 }
 
-// Sub-komponen CellInput dengan penanganan Navigasi TAB Natif & Preservasi Fokus
+// Cell Input Khusus Navigasi TAB & Menjaga Kursor Tetap Terfokus
 function SeamlessCellInput({
   value,
   onChange,
@@ -103,7 +103,7 @@ export function ExecutionGrid({
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
 
-  // Fetch Data dari API
+  // Fetch Data Langsung dari Backend API Supabase
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
@@ -115,7 +115,7 @@ export function ExecutionGrid({
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, {
         cache: "no-store",
-        headers: { "Cache-Control": "no-cache" },
+        headers: { "Cache-Control": "no-cache, no-store, must-revalidate" },
       });
       const result = await res.json();
 
@@ -156,7 +156,7 @@ export function ExecutionGrid({
     fetchExecutions();
   }, [fetchExecutions]);
 
-  // Tambah Baris
+  // Tambah Baris Eksekusi
   const handleAddRow = () => {
     const nextNoUrut = rows.length + 1;
     const newRow: ExecutionRowData = {
@@ -190,7 +190,7 @@ export function ExecutionGrid({
     }
   };
 
-  // Handle Perubahan Sel Tanpa Memotong Fokus TAB Keyboard
+  // Handle Perubahan Sel
   const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
     setInternalRows((prev) => {
       const updated = [...prev];
@@ -206,7 +206,7 @@ export function ExecutionGrid({
     }
   };
 
-  // Auto Save
+  // Auto Save ke Backend Supabase API
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
@@ -226,7 +226,6 @@ export function ExecutionGrid({
       const result = await res.json();
 
       if (res.ok && result.data) {
-        // Update ID tanpa mengganti key DOM agar kursor TAB tidak lepas
         setInternalRows((prev) => {
           const newRows = [...prev];
           if (newRows[rowIndex]) {
@@ -318,7 +317,7 @@ export function ExecutionGrid({
               </button>
             )}
             <span className="text-[11px] text-slate-400 font-mono">
-              📊 <strong>Tabel Eksekusi Debitur:</strong> Tekan <strong>TAB</strong> pada keyboard untuk pindah kolom secara lancar.
+              📊 <strong>Tabel Eksekusi Debitur:</strong> Tekan <strong>TAB</strong> pada keyboard untuk berpindah kolom secara lancar.
             </span>
           </div>
         </div>
