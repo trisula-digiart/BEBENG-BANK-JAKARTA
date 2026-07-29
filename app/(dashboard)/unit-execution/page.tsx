@@ -5,16 +5,29 @@ import { ExecutionGrid } from "@/components/grid/ExecutionGrid";
 import { getTodayDateString } from "@/lib/utils";
 
 export default function UnitExecutionPage() {
+  // Ambil cache awal langsung agar id tidak kosong saat render pertama
+  const getInitialUser = () => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem("app_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const initialUser = getInitialUser();
+
   const [unitInfo, setUnitInfo] = useState<{
     id: string;
     kcp_name: string;
     sentra_mikro: string;
     muh_name: string;
   }>({
-    id: "",
-    kcp_name: "KCP Unit",
-    sentra_mikro: "Sentra Mikro",
-    muh_name: "Petugas Unit",
+    id: initialUser?.unit_id || (initialUser?.unit_name ? `user-unit-${initialUser.unit_name.replace(/\s+/g, "-").toLowerCase()}` : ""),
+    kcp_name: initialUser?.unit_name || "KCP Unit",
+    sentra_mikro: initialUser?.sentra_mikro || "Sentra Mikro",
+    muh_name: initialUser?.muh_name || "Petugas Unit",
   });
 
   const [reportDate, setReportDate] = useState<string>(getTodayDateString());

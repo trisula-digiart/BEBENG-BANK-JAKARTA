@@ -40,7 +40,9 @@ export interface ExecutionGridProps {
   readOnly?: boolean;
 }
 
-// Cell Input Khusus Navigasi TAB & Menjaga Kursor Tetap Terfokus
+const UNIT_PERSISTENT_STORAGE_KEY = "BANK_EMOK_PERSISTENT_GRID_CACHE_V3";
+
+// Input Sel Seamless agar Navigasi TAB Lancar & Fokus Kursor Tidak Hilang
 function SeamlessCellInput({
   value,
   onChange,
@@ -103,7 +105,17 @@ export function ExecutionGrid({
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
 
-  // Fetch Data Langsung dari Backend API Supabase
+  // Helper Simpan ke Storage Lokal (Fail-Safe Anti Hilang saat F5)
+  const saveToLocalCache = (dataToSave: ExecutionRowData[]) => {
+    if (readOnly) return;
+    try {
+      localStorage.setItem(UNIT_PERSISTENT_STORAGE_KEY, JSON.stringify(dataToSave));
+    } catch (e) {
+      console.error("Failed saving local cache", e);
+    }
+  };
+
+  // Fetch Data Eksekusi (Prioritaskan Local Cache Terlebih Dahulu saat F5)
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
@@ -111,6 +123,20 @@ export function ExecutionGrid({
     }
     setLoading(true);
 
+    // 1. Kunci Utama: BACA CACHE LOKAL TERLEBIH DAHULU SAAT REFRESH/F5
+    try {
+      const savedLocal = localStorage.getItem(UNIT_PERSISTENT_STORAGE_KEY);
+      if (savedLocal) {
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setInternalRows(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Error reading local storage cache", e);
+    }
+
+    // 2. Sinkronkan dengan database Supabase backend
     try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, {
@@ -119,13 +145,13 @@ export function ExecutionGrid({
       });
       const result = await res.json();
 
-      if (res.ok && Array.isArray(result.data)) {
+      if (res.ok && Array.isArray(result.data) && result.data.length > 0) {
         const mappedApi: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
           unit_id: item.unit_id,
-          nama_sentra: item.nama_sentra || sentraName || "bekasi",
-          nama_muh: item.nama_muh || muhName || "susanti",
+          nama_sentra: item.nama_sentra || sentraName || "Sentra Mikro",
+          nama_muh: item.nama_muh || muhName || "Petugas Unit",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -144,13 +170,14 @@ export function ExecutionGrid({
         }));
 
         setInternalRows(mappedApi);
+        saveToLocalCache(mappedApi);
       }
     } catch (err) {
-      console.error("Failed to fetch execution rows:", err);
+      console.error("Fetch executions error:", err);
     } finally {
       setLoading(false);
     }
-  }, [rowData, sentraName, muhName]);
+  }, [rowData, sentraName, muhName, readOnly]);
 
   useEffect(() => {
     fetchExecutions();
@@ -164,8 +191,8 @@ export function ExecutionGrid({
       no_urut: nextNoUrut,
       unit_id: unitId,
       report_date: reportDate,
-      nama_sentra: sentraName || "bekasi",
-      nama_muh: muhName || "susanti",
+      nama_sentra: sentraName || "Sentra Mikro",
+      nama_muh: muhName || "Petugas Unit",
       nama_sm: "",
       nama_debitur: "",
       bidang_usaha: "-",
@@ -186,6 +213,7 @@ export function ExecutionGrid({
     if (!rowData) {
       const updated = [...internalRows, newRow];
       setInternalRows(updated);
+      saveToLocalCache(updated);
       autoSaveRow(newRow, updated.length - 1);
     }
   };
@@ -196,6 +224,7 @@ export function ExecutionGrid({
       const updated = [...prev];
       if (updated[index]) {
         updated[index] = { ...updated[index], [field]: value };
+        saveToLocalCache(updated);
         autoSaveRow(updated[index], index);
       }
       return updated;
@@ -212,8 +241,8 @@ export function ExecutionGrid({
     try {
       const payload = {
         ...rowToSave,
-        nama_sentra: rowToSave.nama_sentra || sentraName || "bekasi",
-        nama_muh: rowToSave.nama_muh || muhName || "susanti",
+        nama_sentra: rowToSave.nama_sentra || sentraName || "Sentra Mikro",
+        nama_muh: rowToSave.nama_muh || muhName || "Petugas Unit",
         no_urut: rowToSave.no_urut || rowIndex + 1,
       };
 
@@ -230,6 +259,7 @@ export function ExecutionGrid({
           const newRows = [...prev];
           if (newRows[rowIndex]) {
             newRows[rowIndex].id = result.data.id || newRows[rowIndex].id;
+            saveToLocalCache(newRows);
           }
           return newRows;
         });
@@ -254,7 +284,9 @@ export function ExecutionGrid({
         }
       }
       if (!rowData) {
-        setInternalRows((prev) => prev.filter((_, i) => i !== index));
+        const updated = internalRows.filter((_, i) => i !== index);
+        setInternalRows(updated);
+        saveToLocalCache(updated);
       }
     }
   };
@@ -271,8 +303,8 @@ export function ExecutionGrid({
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
           <span className="text-[10px] font-mono text-slate-400 uppercase block">SENTRA MIKRO</span>
-          <span className="text-sm font-bold text-slate-100 block mt-0.5">{sentraName || "bekasi"}</span>
-          <span className="text-[10px] text-slate-500 block">MUH: {muhName || "susanti"}</span>
+          <span className="text-sm font-bold text-slate-100 block mt-0.5">{sentraName || "Sentra Mikro"}</span>
+          <span className="text-[10px] text-slate-500 block">MUH: {muhName || "Petugas Unit"}</span>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
@@ -317,7 +349,7 @@ export function ExecutionGrid({
               </button>
             )}
             <span className="text-[11px] text-slate-400 font-mono">
-              📊 <strong>Tabel Eksekusi Debitur:</strong> Tekan <strong>TAB</strong> pada keyboard untuk berpindah kolom secara lancar.
+              📊 <strong>Tabel Eksekusi Debitur:</strong> Tekan <strong>TAB</strong> pada keyboard untuk pindah kolom secara lancar.
             </span>
           </div>
         </div>
@@ -365,8 +397,8 @@ export function ExecutionGrid({
                 rows.map((row, idx) => (
                   <tr key={`row-${idx}`} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-2 border-r border-slate-800 font-mono text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "bekasi"}</td>
-                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "susanti"}</td>
+                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "Sentra Mikro"}</td>
+                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "Petugas Unit"}</td>
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">
