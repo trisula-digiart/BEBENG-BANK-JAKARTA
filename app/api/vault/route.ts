@@ -9,43 +9,37 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// Global In-Memory Store Guarantee (Bila Tabel Supabase Belum Ada)
-let memoryDocsStore: any[] = [];
-
-// GET: Fetch All Vault Documents
+// GET: Fetch All Vault Documents Persisten
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
     
-    // 1. Coba ambil dari vault_documents
     const { data, error } = await supabase
       .from("vault_documents")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
       return NextResponse.json({ data }, { status: 200 });
     }
 
-    // 2. Coba ambil dari documents
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("documents")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!fallbackError && fallbackData && fallbackData.length > 0) {
+    if (!fallbackError && fallbackData) {
       return NextResponse.json({ data: fallbackData }, { status: 200 });
     }
 
-    // 3. Fallback ke In-Memory Store
-    return NextResponse.json({ data: memoryDocsStore }, { status: 200 });
+    return NextResponse.json({ data: [] }, { status: 200 });
   } catch (err: any) {
-    console.error("GET vault internal error:", err);
-    return NextResponse.json({ data: memoryDocsStore }, { status: 200 });
+    console.error("GET vault error:", err);
+    return NextResponse.json({ data: [] }, { status: 200 });
   }
 }
 
-// POST: Save/Insert Vault Document (Garansi 100% Sukses Tanpa Melempar Error 400)
+// POST: Save Vault Document
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -54,7 +48,6 @@ export async function POST(req: Request) {
     const supabase = getSupabaseClient();
 
     const docPayload = {
-      id: id || `vault-doc-${Date.now()}`,
       title: String(title || "Dokumen Kerja Baru").trim(),
       category: String(category || "Dokumen Kerja").trim(),
       file_type: String(file_type || "xlsx").toLowerCase().trim(),
@@ -64,50 +57,36 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     };
 
-    // 1. Coba simpan ke vault_documents
+    let savedDoc: any = null;
+
     const { data, error } = await supabase
       .from("vault_documents")
       .insert([docPayload])
       .select();
 
-    if (!error && data && data[0]) {
-      memoryDocsStore.unshift(data[0]);
-      return NextResponse.json({ data: data[0], success: true }, { status: 200 });
+    if (error) {
+      const { data: fbData, error: fbError } = await supabase
+        .from("documents")
+        .insert([docPayload])
+        .select();
+
+      if (fbError) {
+        console.error("Vault insert error:", fbError);
+        return NextResponse.json({ error: fbError.message }, { status: 400 });
+      }
+      savedDoc = fbData && fbData[0] ? fbData[0] : docPayload;
+    } else {
+      savedDoc = data && data[0] ? data[0] : docPayload;
     }
 
-    // 2. Coba simpan ke documents
-    const { data: fbData, error: fbError } = await supabase
-      .from("documents")
-      .insert([docPayload])
-      .select();
-
-    if (!fbError && fbData && fbData[0]) {
-      memoryDocsStore.unshift(fbData[0]);
-      return NextResponse.json({ data: fbData[0], success: true }, { status: 200 });
-    }
-
-    // 3. ZERO-CRASH FALLBACK: Jika tabel Supabase belum dibuat, simpan ke memory & respon 200 OK
-    memoryDocsStore.unshift(docPayload);
-    return NextResponse.json({ data: docPayload, success: true }, { status: 200 });
+    return NextResponse.json({ data: savedDoc, success: true }, { status: 200 });
   } catch (err: any) {
-    console.error("POST vault exception handled:", err);
-
-    const fallbackPayload = {
-      id: `vault-fallback-${Date.now()}`,
-      title: "Dokumen Kerja",
-      category: "Dokumen Kerja",
-      file_type: "xlsx",
-      file_size: "1.1 MB",
-      content: "Dokumen Tersimpan",
-      created_at: new Date().toISOString(),
-    };
-    memoryDocsStore.unshift(fallbackPayload);
-
-    return NextResponse.json({ data: fallbackPayload, success: true }, { status: 200 });
+    console.error("POST vault exception:", err);
+    return NextResponse.json({ error: err?.message || "Internal Error" }, { status: 500 });
   }
 }
 
-// DELETE: Hapus Dokumen Vault
+// DELETE: Delete Document
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -117,7 +96,6 @@ export async function DELETE(req: Request) {
       const supabase = getSupabaseClient();
       await supabase.from("vault_documents").delete().eq("id", id);
       await supabase.from("documents").delete().eq("id", id);
-      memoryDocsStore = memoryDocsStore.filter((doc) => doc.id !== id);
     }
 
     return NextResponse.json({ success: true }, { status: 200 });

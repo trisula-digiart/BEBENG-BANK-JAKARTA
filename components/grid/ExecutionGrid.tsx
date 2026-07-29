@@ -6,8 +6,8 @@ import { getTodayDateString } from "@/lib/utils";
 export interface ExecutionRowData {
   id?: string;
   no_urut?: number;
-  unit_id: string;
-  report_date: string;
+  unit_id?: string;
+  report_date?: string;
   nama_sentra?: string;
   nama_muh?: string;
   nama_sm: string;
@@ -41,6 +41,14 @@ export interface ExecutionGridProps {
   readOnly?: boolean;
 }
 
+// Helper Sanitasi UUID Valid PostgreSQL
+function sanitizeUUID(val?: string): string | null {
+  if (!val || typeof val !== "string") return null;
+  const cleaned = val.trim();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(cleaned) ? cleaned : null;
+}
+
 export function ExecutionGrid({
   unitId,
   sentraName,
@@ -59,11 +67,8 @@ export function ExecutionGrid({
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
 
-  // Safety Fallback UUID jika unitId dari parent belum terisi
-  const activeUnitId =
-    unitId && unitId !== "undefined" && unitId !== "null" && unitId.trim() !== ""
-      ? unitId
-      : "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+  // Sanitasi Unit ID agar terjamin PostgreSQL Valid UUID / Null
+  const activeUnitId = sanitizeUUID(unitId);
 
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
@@ -72,7 +77,11 @@ export function ExecutionGrid({
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/executions?unit_id=${activeUnitId}&date=${reportDate}`);
+      const url = activeUnitId 
+        ? `/api/executions?unit_id=${activeUnitId}&date=${reportDate}`
+        : `/api/executions?date=${reportDate}`;
+        
+      const res = await fetch(url);
       const result = await res.json();
       if (res.ok && Array.isArray(result.data)) {
         setInternalRows(result.data);
@@ -94,8 +103,10 @@ export function ExecutionGrid({
     const newRow: ExecutionRowData = {
       id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       no_urut: nextNoUrut,
-      unit_id: activeUnitId,
+      unit_id: activeUnitId || undefined,
       report_date: reportDate,
+      nama_sentra: sentraName || "Sentra Mikro",
+      nama_muh: muhName || "MUH Unit",
       nama_sm: "-",
       nama_debitur: "-",
       bidang_usaha: "-",
@@ -137,6 +148,8 @@ export function ExecutionGrid({
       const payload = {
         ...rowToSave,
         unit_id: activeUnitId,
+        nama_sentra: rowToSave.nama_sentra || sentraName || "Sentra Mikro",
+        nama_muh: rowToSave.nama_muh || muhName || "MUH Unit",
         no_urut: rowToSave.no_urut || rowIndex + 1,
       };
 
@@ -151,7 +164,11 @@ export function ExecutionGrid({
       if (res.ok && result.data) {
         setInternalRows((prev) => {
           const newRows = [...prev];
-          newRows[rowIndex] = { ...newRows[rowIndex], id: result.data.id, no_urut: result.data.no_urut };
+          newRows[rowIndex] = { 
+            ...newRows[rowIndex], 
+            id: result.data.id, 
+            no_urut: result.data.no_urut || rowIndex + 1 
+          };
           return newRows;
         });
         setSaveStatus("✓ Tersimpan!");
@@ -161,7 +178,7 @@ export function ExecutionGrid({
     } catch (err) {
       setSaveStatus("✕ Gagal");
     } finally {
-      setTimeout(() => setSaveStatus(""), 2000);
+      setTimeout(() => setSaveStatus(""), 2500);
     }
   };
 
@@ -216,8 +233,8 @@ export function ExecutionGrid({
             </span>
           </div>
           {saveStatus && (
-            <span className={`text-[10px] font-mono font-bold px-2 py-1 rounded ${
-              saveStatus.includes("✓") ? "bg-emerald-950 text-emerald-400" : saveStatus.includes("✕") ? "bg-rose-950 text-rose-400" : "bg-indigo-950 text-indigo-400"
+            <span className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded shadow-md ${
+              saveStatus.includes("✓") ? "bg-emerald-950 text-emerald-400 border border-emerald-800" : saveStatus.includes("✕") ? "bg-rose-950 text-rose-400 border border-rose-800" : "bg-indigo-950 text-indigo-400 border border-indigo-800"
             }`}>
               {saveStatus}
             </span>
@@ -279,7 +296,7 @@ export function ExecutionGrid({
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={19} className="text-center py-8 text-slate-500">
-                    Belum ada data eksekusi hari ini.
+                    Belum ada data eksekusi bulan berjalan.
                   </td>
                 </tr>
               ) : (
@@ -294,7 +311,7 @@ export function ExecutionGrid({
                       <input
                         type="text"
                         disabled={isReadOnly}
-                        value={row.nama_sm}
+                        value={row.nama_sm || ""}
                         onChange={(e) => handleCellChange(idx, "nama_sm", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-100 focus:outline-none focus:border-rose-500 text-xs"
                       />
@@ -305,7 +322,7 @@ export function ExecutionGrid({
                       <input
                         type="text"
                         disabled={isReadOnly}
-                        value={row.nama_debitur}
+                        value={row.nama_debitur || ""}
                         onChange={(e) => handleCellChange(idx, "nama_debitur", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-bold text-blue-400 focus:outline-none focus:border-rose-500 text-xs"
                       />
@@ -316,7 +333,7 @@ export function ExecutionGrid({
                       <input
                         type="text"
                         disabled={isReadOnly}
-                        value={row.bidang_usaha}
+                        value={row.bidang_usaha || ""}
                         onChange={(e) => handleCellChange(idx, "bidang_usaha", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
                       />
@@ -327,7 +344,7 @@ export function ExecutionGrid({
                       <input
                         type="text"
                         disabled={isReadOnly}
-                        value={row.no_tabungan}
+                        value={row.no_tabungan || ""}
                         onChange={(e) => handleCellChange(idx, "no_tabungan", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
                       />
@@ -338,7 +355,7 @@ export function ExecutionGrid({
                       <input
                         type="text"
                         disabled={isReadOnly}
-                        value={row.no_pinjaman}
+                        value={row.no_pinjaman || ""}
                         onChange={(e) => handleCellChange(idx, "no_pinjaman", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
                       />
@@ -348,7 +365,7 @@ export function ExecutionGrid({
                     <td className="p-1 border-r border-slate-800">
                       <select
                         disabled={isReadOnly}
-                        value={row.line_proses}
+                        value={row.line_proses || "SM"}
                         onChange={(e) => handleCellChange(idx, "line_proses", e.target.value)}
                         className="w-full bg-amber-200 font-bold text-slate-950 border border-amber-300 rounded px-1.5 py-1 focus:outline-none text-xs"
                       >
@@ -365,7 +382,7 @@ export function ExecutionGrid({
                       <input
                         type="number"
                         disabled={isReadOnly}
-                        value={row.plafon}
+                        value={row.plafon || 0}
                         onChange={(e) => handleCellChange(idx, "plafon", Number(e.target.value))}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-emerald-400 font-bold focus:outline-none focus:border-rose-500 text-xs"
                       />
@@ -376,7 +393,7 @@ export function ExecutionGrid({
                       <input
                         type="number"
                         disabled={isReadOnly}
-                        value={row.nett_booking}
+                        value={row.nett_booking || 0}
                         onChange={(e) => handleCellChange(idx, "nett_booking", Number(e.target.value))}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-blue-400 font-bold focus:outline-none focus:border-rose-500 text-xs"
                       />
@@ -398,7 +415,7 @@ export function ExecutionGrid({
                       <input
                         type="text"
                         disabled={isReadOnly}
-                        value={row.periode_bulan}
+                        value={row.periode_bulan || ""}
                         onChange={(e) => handleCellChange(idx, "periode_bulan", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 font-mono text-slate-300 focus:outline-none text-[11px]"
                       />
@@ -453,7 +470,7 @@ export function ExecutionGrid({
                       <input
                         type="text"
                         disabled={isReadOnly}
-                        value={row.keterangan}
+                        value={row.keterangan || ""}
                         onChange={(e) => handleCellChange(idx, "keterangan", e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
                       />
