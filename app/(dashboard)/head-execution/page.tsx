@@ -17,7 +17,7 @@ export default function HeadExecutionPage() {
   const [appName, setAppName] = useState<string>("Bank Daily Report");
   const [isMounted, setIsMounted] = useState<boolean>(false);
 
-  // Filter State (Default ALL agar semua data dari unit langsung tampil)
+  // Filter State (Default ALL)
   const [selectedSentra, setSelectedSentra] = useState<string>("ALL");
   const [selectedMuh, setSelectedMuh] = useState<string>("ALL");
 
@@ -30,7 +30,7 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Consolidated Executions
+  // Fetch Consolidated Executions Realtime
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
       const timestamp = Date.now();
@@ -47,8 +47,8 @@ export default function HeadExecutionPage() {
         const mappedRows: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
-          nama_sentra: item.nama_sentra ? String(item.nama_sentra).trim() : "bekasi",
-          nama_muh: item.nama_muh ? String(item.nama_muh).trim() : "susanti",
+          nama_sentra: item.nama_sentra ? String(item.nama_sentra).trim() : "cikarang",
+          nama_muh: item.nama_muh ? String(item.nama_muh).trim() : "andi",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -79,7 +79,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // DUAL-ENGINE INSTANT SYNC (REALTIME CHANNEL SUPABASE + FAST POLLING 1 DETIK)
+    // DUAL-ENGINE INSTANT SYNC
     const channel = supabase
       .channel("realtime_head_executions_channel")
       .on(
@@ -101,7 +101,7 @@ export default function HeadExecutionPage() {
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Logika Penyaringan Presisi & Toleran
+  // Logika Penyaringan Toleran
   useEffect(() => {
     let result = [...allData];
 
@@ -133,6 +133,9 @@ export default function HeadExecutionPage() {
   const totalPlafonArea = filteredData.reduce((acc, curr) => acc + (Number(curr.plafon) || 0), 0);
   const totalNettBookingArea = filteredData.reduce((acc, curr) => acc + (Number(curr.nett_booking) || 0), 0);
   const totalDebitur = filteredData.filter((r) => r.nama_debitur && r.nama_debitur !== "-").length;
+
+  const activeSentraName = filteredData[0]?.nama_sentra || "Semua Sentra Area";
+  const activeMuhName = filteredData[0]?.nama_muh || "Seluruh Petugas";
 
   const formatRupiah = (val: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val);
@@ -318,6 +321,8 @@ export default function HeadExecutionPage() {
             </div>
           ) : (
             <ExecutionGrid
+              sentraName={activeSentraName}
+              muhName={activeMuhName}
               rowData={filteredData}
               isLocked={true}
               onSaveRow={async () => {}}

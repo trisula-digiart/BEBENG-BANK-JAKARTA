@@ -145,8 +145,8 @@ export function ExecutionGrid({
           id: item.id,
           no_urut: item.no_urut,
           unit_id: item.unit_id,
-          nama_sentra: item.nama_sentra || sentraName || "bekasi",
-          nama_muh: item.nama_muh || muhName || "susanti",
+          nama_sentra: item.nama_sentra || sentraName || "cikarang",
+          nama_muh: item.nama_muh || muhName || "andi",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -185,8 +185,8 @@ export function ExecutionGrid({
       no_urut: nextNoUrut,
       unit_id: unitId,
       report_date: reportDate,
-      nama_sentra: sentraName || "bekasi",
-      nama_muh: muhName || "susanti",
+      nama_sentra: sentraName || "cikarang",
+      nama_muh: muhName || "andi",
       nama_sm: "",
       nama_debitur: "",
       bidang_usaha: "-",
@@ -238,8 +238,8 @@ export function ExecutionGrid({
         ...rowToSave,
         id: cleanId,
         unit_id: unitId || rowToSave.unit_id,
-        nama_sentra: rowToSave.nama_sentra || sentraName || "bekasi",
-        nama_muh: rowToSave.nama_muh || muhName || "susanti",
+        nama_sentra: rowToSave.nama_sentra || sentraName || "cikarang",
+        nama_muh: rowToSave.nama_muh || muhName || "andi",
         no_urut: rowToSave.no_urut || rowIndex + 1,
       };
 
@@ -300,8 +300,8 @@ export function ExecutionGrid({
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
           <span className="text-[10px] font-mono text-slate-400 uppercase block">SENTRA MIKRO</span>
-          <span className="text-sm font-bold text-slate-100 block mt-0.5">{sentraName || "bekasi"}</span>
-          <span className="text-[10px] text-slate-500 block">MUH: {muhName || "susanti"}</span>
+          <span className="text-sm font-bold text-slate-100 block mt-0.5">{sentraName || "cikarang"}</span>
+          <span className="text-[10px] text-slate-500 block">MUH: {muhName || "andi"}</span>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
@@ -394,8 +394,8 @@ export function ExecutionGrid({
                 rows.map((row, idx) => (
                   <tr key={`row-${idx}`} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-2 border-r border-slate-800 font-mono text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "bekasi"}</td>
-                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "susanti"}</td>
+                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "cikarang"}</td>
+                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "andi"}</td>
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">

@@ -85,11 +85,11 @@ export async function POST(req: Request) {
       keterangan,
     } = body;
 
-    // Susun Payload Bersih
+    // Susun Payload Bersih (Dinamis dari Unit)
     const cleanPayload: any = {
       no_urut: Number(no_urut) || 1,
-      nama_sentra: String(nama_sentra || "bekasi").trim().toLowerCase(),
-      nama_muh: String(nama_muh || "susanti").trim().toLowerCase(),
+      nama_sentra: String(nama_sentra || "cikarang").trim().toLowerCase(),
+      nama_muh: String(nama_muh || "andi").trim().toLowerCase(),
       nama_sm: String(nama_sm || "-").trim(),
       nama_debitur: String(nama_debitur || "-").trim(),
       bidang_usaha: String(bidang_usaha || "-").trim(),
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       keterangan: String(keterangan || "COLLECT DATA").trim(),
     };
 
-    // Pengecekan UUID unit_id valid
+    // Validasi UUID unit_id jika ada
     const isUnitUUID =
       unit_id &&
       typeof unit_id === "string" &&
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
 
     let savedResult: any = null;
 
-    // Pengecekan UUID Record ID valid
+    // Validasi UUID Record ID jika update
     const isRecordUUID =
       id &&
       typeof id === "string" &&
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
       if (insertError) {
         console.error("Insert error Supabase Cloud:", insertError);
         
-        // Retry tanpa unit_id jika terjadi FK constraint error
+        // Fallback jika terjadi kesalahan FK unit_id
         delete cleanPayload.unit_id;
         const { data: retryData, error: retryError } = await supabase
           .from("executions")
