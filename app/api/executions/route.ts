@@ -6,7 +6,6 @@ export const revalidate = 0;
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  // Menggunakan Service Role Key jika ada untuk bypass RLS Supabase secara total
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
