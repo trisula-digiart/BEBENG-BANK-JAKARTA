@@ -9,7 +9,7 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// GET: Fetch All Executions Langsung dari Database Supabase Cloud
+// GET: Ambil SELURUH Data Tanpa Syarat Apapun
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -20,7 +20,7 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("GET executions Supabase error:", error);
+      console.error("Supabase GET executions error:", error);
       return NextResponse.json({ data: [] }, { status: 200 });
     }
 
@@ -31,7 +31,7 @@ export async function GET() {
   }
 }
 
-// POST: Direct Mandatory Insert/Update ke Supabase Cloud Database
+// POST: Mandatory Insert / Update
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -84,7 +84,6 @@ export async function POST(req: Request) {
 
     let savedData: any = null;
 
-    // Cek apakah ID merupakan UUID PostgreSQL valid
     const isUUID = id && typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
     if (isUUID) {
@@ -106,7 +105,7 @@ export async function POST(req: Request) {
         .select();
 
       if (error) {
-        console.error("Insert execution error Supabase:", error);
+        console.error("Supabase Insert Error:", error);
         return NextResponse.json({ data: { id: `temp-exec-${Date.now()}`, ...payload }, success: true }, { status: 200 });
       }
 

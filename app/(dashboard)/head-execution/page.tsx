@@ -30,7 +30,7 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Consolidated Data
+  // Fetch Consolidated Executions
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
       const timestamp = Date.now();
@@ -47,8 +47,8 @@ export default function HeadExecutionPage() {
         const mappedRows: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
-          nama_sentra: item.nama_sentra || "bekasi",
-          nama_muh: item.nama_muh || "susanti",
+          nama_sentra: String(item.nama_sentra || "bekasi").trim(),
+          nama_muh: String(item.nama_muh || "susanti").trim(),
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -79,7 +79,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // DUAL-ENGINE REALTIME SINKRONISASI
+    // REALTIME LISTENER + FAST POLLING
     const channel = supabase
       .channel("realtime_head_executions_channel")
       .on(
@@ -101,15 +101,24 @@ export default function HeadExecutionPage() {
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Handle Filter
+  // Logika Penyaringan Fleksibel (Anti Menghilangkan Data)
   useEffect(() => {
-    let result = allData;
+    let result = [...allData];
+
     if (selectedSentra !== "ALL") {
-      result = result.filter((item) => item.nama_sentra === selectedSentra);
+      result = result.filter(
+        (item) =>
+          item.nama_sentra.toLowerCase().trim() === selectedSentra.toLowerCase().trim()
+      );
     }
+
     if (selectedMuh !== "ALL") {
-      result = result.filter((item) => item.nama_muh === selectedMuh);
+      result = result.filter(
+        (item) =>
+          item.nama_muh.toLowerCase().trim() === selectedMuh.toLowerCase().trim()
+      );
     }
+
     setFilteredData(result);
   }, [selectedSentra, selectedMuh, allData]);
 
@@ -235,13 +244,13 @@ export default function HeadExecutionPage() {
             <h1 className="text-base font-bold text-slate-100 flex items-center gap-2">
               <span>📋 Rekap Eksekusi Area</span>
               <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-mono animate-pulse">
-                ⚡ LIVE REALTIME ALL UNITS
+                ⚡ LIVE REALTIME ALL UNITS ({filteredData.length})
               </span>
             </h1>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {/* Ultra Compact Metric Bar */}
+            {/* Metric Bar */}
             <div className="hidden lg:flex items-center gap-3 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800 font-mono text-[11px]">
               <span className="text-slate-400">Total: <strong className="text-rose-400">{totalDebitur} Debitur</strong></span>
               <span className="text-slate-700">|</span>
@@ -257,7 +266,7 @@ export default function HeadExecutionPage() {
                 onChange={(e) => setSelectedSentra(e.target.value)}
                 className="bg-slate-950 border border-slate-800 text-slate-200 rounded px-2 py-1 text-xs focus:outline-none"
               >
-                <option value="ALL">-- Semua --</option>
+                <option value="ALL">-- Semua Sentra --</option>
                 {sentraOptions.map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
@@ -271,7 +280,7 @@ export default function HeadExecutionPage() {
                 onChange={(e) => setSelectedMuh(e.target.value)}
                 className="bg-slate-950 border border-slate-800 text-slate-200 rounded px-2 py-1 text-xs focus:outline-none"
               >
-                <option value="ALL">-- Semua --</option>
+                <option value="ALL">-- Semua MUH --</option>
                 {muhOptions.map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}

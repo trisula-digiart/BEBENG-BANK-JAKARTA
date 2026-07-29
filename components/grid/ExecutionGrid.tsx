@@ -58,7 +58,7 @@ export function ExecutionGrid({
   const isReadOnly = isLocked || readOnly;
   const saveTimeoutRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
 
-  // Fetch Data Langsung dari Supabase API
+  // Fetch Data Langsung dari Supabase
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
@@ -167,7 +167,7 @@ export function ExecutionGrid({
           }
           return latest;
         });
-      }, 700);
+      }, 600);
     }
   };
 
