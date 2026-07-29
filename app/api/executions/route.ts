@@ -12,15 +12,17 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// Helper validasi UUID
+// Helper validasi UUID murni
 function isValidUUID(str?: string | null): boolean {
   if (!str) return false;
+  if (typeof str !== "string") return false;
+  if (str.startsWith("temp_")) return false;
   const uuidRegex =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
 }
 
-// GET: Fetch All Executions untuk Head Area & Unit
+// GET: Fetch Semua Data Eksekusi
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -44,7 +46,7 @@ export async function GET() {
   }
 }
 
-// POST: Save/Upsert Row Eksekusi Debitur dari Unit
+// POST: Save/Upsert Data Eksekusi dari Unit
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -73,10 +75,7 @@ export async function POST(req: Request) {
 
     const supabase = getSupabaseClient();
 
-    // Sanitasi & Persiapan Payload DB
-    const cleanUnitId = isValidUUID(unit_id) ? unit_id : null;
-    const cleanId = isValidUUID(id) ? id : undefined;
-
+    // 1. Sanitasi Payload agar aman dari Error 400 PostgreSQL Constraint
     const payload: Record<string, any> = {
       nama_sentra: String(nama_sentra || "cikarang").trim(),
       nama_muh: String(nama_muh || "andi").trim(),
@@ -97,22 +96,23 @@ export async function POST(req: Request) {
       keterangan: String(keterangan || "").trim(),
     };
 
-    if (cleanUnitId) {
-      payload.unit_id = cleanUnitId;
+    // Hanya masukkan unit_id jika UUID valid, abaikan jika string biasa/temp
+    if (isValidUUID(unit_id)) {
+      payload.unit_id = unit_id;
     }
 
-    if (no_urut) {
+    if (no_urut && !isNaN(Number(no_urut))) {
       payload.no_urut = Number(no_urut);
     }
 
     let savedData: any = null;
 
-    if (cleanId) {
-      // Update data existing
+    // 2. Eksekusi DB: Update jika UUID ID valid, Insert jika ID temp / baru
+    if (isValidUUID(id)) {
       const { data, error } = await supabase
         .from("executions")
         .update(payload)
-        .eq("id", cleanId)
+        .eq("id", id)
         .select();
 
       if (error) {
@@ -122,9 +122,8 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      savedData = data && data[0] ? data[0] : { id: cleanId, ...payload };
+      savedData = data && data[0] ? data[0] : { id, ...payload };
     } else {
-      // Insert data baru
       const { data, error } = await supabase
         .from("executions")
         .insert([payload])
@@ -147,13 +146,13 @@ export async function POST(req: Request) {
   } catch (err: any) {
     console.error("POST execution exception:", err);
     return NextResponse.json(
-      { error: err?.message || "Internal Exception saat menyimpan data eksekusi" },
+      { error: err?.message || "Internal Exception saat menyimpan data" },
       { status: 500 }
     );
   }
 }
 
-// DELETE: Hapus Row Eksekusi
+// DELETE: Hapus Data Eksekusi
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
