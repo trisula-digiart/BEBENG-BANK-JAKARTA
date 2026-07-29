@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { ExecutionGrid, ExecutionRowData } from "@/components/grid/ExecutionGrid";
 import { getTodayDateString, formatDateID } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
+import { createBrowserClient } from "@/lib/supabase/client";
 
 export default function HeadExecutionPage() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
@@ -75,8 +75,8 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // Browser Supabase Client Singleton
-    const supabase = createClient();
+    // Browser Supabase Client Singleton menggunakan createBrowserClient
+    const supabase = createBrowserClient();
 
     // DUAL-ENGINE INSTANT SYNC
     const channel = supabase
