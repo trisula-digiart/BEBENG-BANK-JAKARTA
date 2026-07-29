@@ -15,7 +15,7 @@ function getSupabaseClient() {
   });
 }
 
-// GET: Ambil SELURUH Data Eksekusi dari Supabase Cloud (No Cache)
+// GET: Fetch Seluruh Data Eksekusi dari Supabase Cloud (No Cache)
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -57,7 +57,7 @@ export async function GET() {
   }
 }
 
-// POST: Simpan Persisten ke Database Supabase Cloud (Direct Insert & Update)
+// POST: Ultra Safe Insert/Update ke Supabase
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -66,7 +66,6 @@ export async function POST(req: Request) {
     const {
       id,
       no_urut,
-      unit_id,
       nama_sentra,
       nama_muh,
       nama_sm,
@@ -85,7 +84,7 @@ export async function POST(req: Request) {
       keterangan,
     } = body;
 
-    // Payload Minimalis & Aman dari Constraint Type Error
+    // Payload Murni Tanpa Constraint
     const cleanPayload: any = {
       no_urut: Number(no_urut) || 1,
       nama_sentra: String(nama_sentra || "cikarang").trim().toLowerCase(),
@@ -106,18 +105,9 @@ export async function POST(req: Request) {
       keterangan: String(keterangan || "COLLECT DATA").trim(),
     };
 
-    // Sertakan unit_id hanya jika valid UUID
-    const isUnitUUID =
-      unit_id &&
-      typeof unit_id === "string" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(unit_id);
-    if (isUnitUUID) {
-      cleanPayload.unit_id = unit_id;
-    }
-
     let savedResult: any = null;
 
-    // Pengecekan UUID Record ID jika UPDATE
+    // Jika ada ID UUID valid, coba UPDATE
     const isRecordUUID =
       id &&
       typeof id === "string" &&
@@ -135,7 +125,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Jika belum ter-update (record baru), lakukan INSERT
+    // Jika belum terupdate, lakukan INSERT
     if (!savedResult) {
       const { data: insertData, error: insertError } = await supabase
         .from("executions")
@@ -143,24 +133,11 @@ export async function POST(req: Request) {
         .select();
 
       if (insertError) {
-        console.error("Insert Primary Error Supabase:", insertError);
-
-        // Fallback retry tanpa unit_id
-        delete cleanPayload.unit_id;
-        const { data: retryData, error: retryError } = await supabase
-          .from("executions")
-          .insert([cleanPayload])
-          .select();
-
-        if (!retryError && retryData && retryData[0]) {
-          savedResult = retryData[0];
-        } else {
-          console.error("Retry Insert Error:", retryError);
-          return NextResponse.json(
-            { data: { id: `temp-${Date.now()}`, ...cleanPayload }, success: false, error: retryError?.message },
-            { status: 200 }
-          );
-        }
+        console.error("Supabase Insert Error:", insertError);
+        return NextResponse.json(
+          { success: false, error: insertError.message },
+          { status: 200 }
+        );
       } else {
         savedResult = insertData && insertData[0] ? insertData[0] : cleanPayload;
       }
