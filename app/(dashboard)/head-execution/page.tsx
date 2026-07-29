@@ -26,7 +26,7 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Consolidated Executions Realtime
+  // Fetch Consolidated Executions Realtime dari Supabase Cloud via Backend API
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
       const timestamp = Date.now();
@@ -75,7 +75,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // Inisialisasi Supabase Browser Client dari Existing Helper
+    // Browser Supabase Client Singleton
     const supabase = createClient();
 
     // DUAL-ENGINE INSTANT SYNC
@@ -100,7 +100,7 @@ export default function HeadExecutionPage() {
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Logika Penyaringan Toleran
+  // Logika Penyaringan
   useEffect(() => {
     let result = [...allData];
 
