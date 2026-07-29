@@ -22,6 +22,13 @@ export default function SettingsPage() {
   const [savingBankName, setSavingBankName] = useState<boolean>(false);
   const [savedNameSuccess, setSavedNameSuccess] = useState<boolean>(false);
 
+  // State Form Kredensial Head Area
+  const [headName, setHeadName] = useState<string>("Manong (Head Area)");
+  const [headEmail, setHeadEmail] = useState<string>("manong@k2c.com");
+  const [headPassword, setHeadPassword] = useState<string>("12345678");
+  const [savingHead, setSavingHead] = useState<boolean>(false);
+  const [savedHeadSuccess, setSavedHeadSuccess] = useState<boolean>(false);
+
   // Form Modal Edit / Add Unit
   const [showModal, setShowModal] = useState<boolean>(false);
   const [savingUnit, setSavingUnit] = useState<boolean>(false);
@@ -53,8 +60,32 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    // Load App Bank Name
     const savedName = localStorage.getItem("APP_BANK_NAME");
     if (savedName) setAppName(savedName);
+
+    // Load Head Profile dari LocalStorage / Sesi
+    const savedHeadProfile = localStorage.getItem("HEAD_PROFILE");
+    if (savedHeadProfile) {
+      try {
+        const parsed = JSON.parse(savedHeadProfile);
+        if (parsed.username) setHeadName(parsed.username);
+        if (parsed.email) setHeadEmail(parsed.email);
+        if (parsed.password) setHeadPassword(parsed.password);
+      } catch (e) {}
+    } else {
+      const appUser = localStorage.getItem("app_user");
+      if (appUser) {
+        try {
+          const parsedUser = JSON.parse(appUser);
+          if (parsedUser.role === "HEAD_AREA") {
+            if (parsedUser.username) setHeadName(parsedUser.username);
+            if (parsedUser.email) setHeadEmail(parsedUser.email);
+          }
+        } catch (e) {}
+      }
+    }
+
     fetchUnits();
   }, [fetchUnits]);
 
@@ -69,6 +100,44 @@ export default function SettingsPage() {
       setTimeout(() => setSavedNameSuccess(false), 2500);
       window.location.reload();
     }, 500);
+  };
+
+  // Handle Save Kredensial & Profil Head Area
+  const handleSaveHeadProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingHead(true);
+
+    const updatedHeadProfile = {
+      username: headName,
+      email: headEmail,
+      password: headPassword,
+      role: "HEAD_AREA",
+    };
+
+    // Simpan ke storage local dan perbarui Sesi Aktif
+    localStorage.setItem("HEAD_PROFILE", JSON.stringify(updatedHeadProfile));
+
+    const currentSession = localStorage.getItem("app_user");
+    if (currentSession) {
+      try {
+        const parsedSession = JSON.parse(currentSession);
+        if (parsedSession.role === "HEAD_AREA") {
+          const newSession = {
+            ...parsedSession,
+            username: headName,
+            email: headEmail,
+          };
+          localStorage.setItem("app_user", JSON.stringify(newSession));
+        }
+      } catch (e) {}
+    }
+
+    setTimeout(() => {
+      setSavingHead(false);
+      setSavedHeadSuccess(true);
+      setTimeout(() => setSavedHeadSuccess(false), 2500);
+      window.location.reload();
+    }, 600);
   };
 
   // Handle Save / Update Unit + User Account
@@ -150,17 +219,17 @@ export default function SettingsPage() {
           Pengaturan Sistem & Manajemen Unit
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">
-          Kelola nama bank/instansi header, pendaftaran unit kerja baru & akun akses login, serta pantauan waktu operasional real-time.
+          Kelola nama bank/instansi header, profil & kredensial login Head Area, pendaftaran unit kerja baru, serta pantauan waktu operasional.
         </p>
       </div>
 
-      {/* Top Grid: Bank Name Form & Prayer Clock Widget */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Form Ubah Nama Bank */}
+      {/* Top Grid: Bank Name Form, Head Profile Form, & Prayer Clock Widget */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* CARD 1: Form Ubah Nama Bank */}
         <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-xl backdrop-blur flex flex-col justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-1">
-              <span>🏛️</span> Ubah Nama Bank / Instansi (Header Brand)
+              <span>🏛️</span> Ubah Nama Bank / Instansi
             </h2>
             <p className="text-[11px] text-slate-400 mb-4">
               Nama ini akan ditampilkan pada bagian kiri atas header navigasi portal secara terpusat.
@@ -195,7 +264,70 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Widget Jam & Jadwal Sholat */}
+        {/* CARD 2: Form Ubah Profil & Login Head Area (FITUR BARU) */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-xl backdrop-blur flex flex-col justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-1">
+              <span>👨‍💼</span> Ubah Login & Profil Head Area
+            </h2>
+            <p className="text-[11px] text-slate-400 mb-3">
+              Ubah nama tampilan Head, serta email dan password yang digunakan untuk login.
+            </p>
+
+            <form onSubmit={handleSaveHeadProfile} className="space-y-2.5 text-xs">
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Nama Tampilan Head *</label>
+                <input
+                  type="text"
+                  required
+                  value={headName}
+                  onChange={(e) => setHeadName(e.target.value)}
+                  placeholder="Contoh: Manong (Head Area)"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-2 text-slate-100 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Email Perbankan Login Head *</label>
+                <input
+                  type="email"
+                  required
+                  value={headEmail}
+                  onChange={(e) => setHeadEmail(e.target.value)}
+                  placeholder="manong@k2c.com"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-2 text-slate-100 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Password Baru Login *</label>
+                <input
+                  type="text"
+                  required
+                  value={headPassword}
+                  onChange={(e) => setHeadPassword(e.target.value)}
+                  placeholder="Masukkan password baru..."
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-2 text-slate-100 focus:border-indigo-500 focus:outline-none font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                {savedHeadSuccess && (
+                  <span className="text-emerald-400 font-medium text-[11px]">✓ Profil Head Diperbarui</span>
+                )}
+                <button
+                  type="submit"
+                  disabled={savingHead}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow-md transition-all cursor-pointer ml-auto text-xs"
+                >
+                  {savingHead ? "Menyimpan..." : "Simpan Profil Head"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* CARD 3: Widget Jam & Jadwal Sholat */}
         <PrayerWidget />
       </div>
 

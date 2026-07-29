@@ -235,7 +235,7 @@ export function DocumentEditorModal({ doc, onClose, onSave }: DocumentEditorModa
             }
           `}</style>
 
-          <div style={{ textAlign: "center", marginBottom: "12px", borderBottom: "2px solid #000", pb: "8px" }}>
+          <div style={{ textAlign: "center", marginBottom: "12px", borderBottom: "2px solid #000", paddingBottom: "8px" }}>
             <h2 style={{ fontSize: "14pt", fontWeight: "bold", margin: 0, textTransform: "uppercase" }}>{title}</h2>
             <p style={{ fontSize: "8.5pt", margin: "4px 0 0 0", color: "#333333" }}>
               DOKUMEN RESMI BRANKAS • Kategori: {doc.category} {activeSheetName ? `| Sheet: ${activeSheetName}` : ""}
