@@ -3,11 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { ExecutionGrid, ExecutionRowData } from "@/components/grid/ExecutionGrid";
 import { getTodayDateString, formatDateID } from "@/lib/utils";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { createClient } from "@/lib/supabase/client";
 
 export default function HeadExecutionPage() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
@@ -79,6 +75,9 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
+    // Inisialisasi Supabase Browser Client dari Existing Helper
+    const supabase = createClient();
+
     // DUAL-ENGINE INSTANT SYNC
     const channel = supabase
       .channel("realtime_head_executions_channel")
@@ -93,7 +92,7 @@ export default function HeadExecutionPage() {
 
     const pollInterval = setInterval(() => {
       fetchConsolidatedExecutions();
-    }, 1000);
+    }, 1500);
 
     return () => {
       supabase.removeChannel(channel);
