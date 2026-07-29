@@ -22,10 +22,11 @@ export default function SettingsPage() {
   const [savingBankName, setSavingBankName] = useState<boolean>(false);
   const [savedNameSuccess, setSavedNameSuccess] = useState<boolean>(false);
 
-  // State Form Kredensial Head Area
+  // State Form Kredensial & KCP Head Area
   const [headName, setHeadName] = useState<string>("Manong (Head Area)");
   const [headEmail, setHeadEmail] = useState<string>("manong@k2c.com");
   const [headPassword, setHeadPassword] = useState<string>("12345678");
+  const [headKcpUnit, setHeadKcpUnit] = useState<string>("KCP Walikota (Sentra Mikro Jkt Timur)");
   const [savingHead, setSavingHead] = useState<boolean>(false);
   const [savedHeadSuccess, setSavedHeadSuccess] = useState<boolean>(false);
 
@@ -72,6 +73,7 @@ export default function SettingsPage() {
         if (parsed.username) setHeadName(parsed.username);
         if (parsed.email) setHeadEmail(parsed.email);
         if (parsed.password) setHeadPassword(parsed.password);
+        if (parsed.kcp_unit) setHeadKcpUnit(parsed.kcp_unit);
       } catch (e) {}
     } else {
       const appUser = localStorage.getItem("app_user");
@@ -81,6 +83,7 @@ export default function SettingsPage() {
           if (parsedUser.role === "HEAD_AREA") {
             if (parsedUser.username) setHeadName(parsedUser.username);
             if (parsedUser.email) setHeadEmail(parsedUser.email);
+            if (parsedUser.unit_name) setHeadKcpUnit(parsedUser.unit_name);
           }
         } catch (e) {}
       }
@@ -102,21 +105,24 @@ export default function SettingsPage() {
     }, 500);
   };
 
-  // Handle Save Kredensial & Profil Head Area
+  // Handle Save Kredensial & Profil Head Area (Termasuk KCP Unit)
   const handleSaveHeadProfile = (e: React.FormEvent) => {
     e.preventDefault();
     setSavingHead(true);
 
     const updatedHeadProfile = {
       username: headName,
-      email: headEmail,
-      password: headPassword,
+      email: headEmail.toLowerCase().trim(),
+      password: headPassword.trim(),
+      unit_name: headKcpUnit,
+      sentra_mikro: "Sentra Mikro Jkt Timur",
       role: "HEAD_AREA",
     };
 
-    // Simpan ke storage local dan perbarui Sesi Aktif
+    // Simpan ke storage local profil head
     localStorage.setItem("HEAD_PROFILE", JSON.stringify(updatedHeadProfile));
 
+    // Perbarui sesi aktif saat ini
     const currentSession = localStorage.getItem("app_user");
     if (currentSession) {
       try {
@@ -125,11 +131,23 @@ export default function SettingsPage() {
           const newSession = {
             ...parsedSession,
             username: headName,
-            email: headEmail,
+            email: headEmail.toLowerCase().trim(),
+            unit_name: headKcpUnit,
           };
           localStorage.setItem("app_user", JSON.stringify(newSession));
         }
       } catch (e) {}
+    } else {
+      // Buat sesi baru jika belum ada
+      const defaultSession = {
+        id: "head-custom-id",
+        email: headEmail.toLowerCase().trim(),
+        username: headName,
+        role: "HEAD_AREA",
+        unit_name: headKcpUnit,
+        sentra_mikro: "Sentra Mikro Jkt Timur",
+      };
+      localStorage.setItem("app_user", JSON.stringify(defaultSession));
     }
 
     setTimeout(() => {
@@ -264,50 +282,62 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* CARD 2: Form Ubah Profil & Login Head Area (FITUR BARU) */}
+        {/* CARD 2: Form Ubah Profil, KCP, & Login Head Area */}
         <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-xl backdrop-blur flex flex-col justify-between">
           <div>
             <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2 mb-1">
-              <span>👨‍💼</span> Ubah Login & Profil Head Area
+              <span>👨‍💼</span> Ubah Profil, KCP & Login Head
             </h2>
-            <p className="text-[11px] text-slate-400 mb-3">
-              Ubah nama tampilan Head, serta email dan password yang digunakan untuk login.
+            <p className="text-[11px] text-slate-400 mb-2.5">
+              Ubah nama, info KCP/Unit Area, serta email dan password login Head.
             </p>
 
-            <form onSubmit={handleSaveHeadProfile} className="space-y-2.5 text-xs">
+            <form onSubmit={handleSaveHeadProfile} className="space-y-2 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Nama Tampilan Head *</label>
+                <label className="block text-slate-300 font-semibold mb-0.5">Nama Tampilan Head *</label>
                 <input
                   type="text"
                   required
                   value={headName}
                   onChange={(e) => setHeadName(e.target.value)}
-                  placeholder="Contoh: Manong (Head Area)"
-                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-2 text-slate-100 focus:border-indigo-500 focus:outline-none"
+                  placeholder="Contoh: ACHMAD AKBAR (Head Area)"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-1.5 text-slate-100 focus:border-indigo-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Email Perbankan Login Head *</label>
+                <label className="block text-slate-300 font-semibold mb-0.5">Info KCP / Unit Area Head *</label>
+                <input
+                  type="text"
+                  required
+                  value={headKcpUnit}
+                  onChange={(e) => setHeadKcpUnit(e.target.value)}
+                  placeholder="KCP Walikota (Sentra Mikro Jkt Timur)"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-1.5 text-slate-100 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-0.5">Email Perbankan Login Head *</label>
                 <input
                   type="email"
                   required
                   value={headEmail}
                   onChange={(e) => setHeadEmail(e.target.value)}
-                  placeholder="manong@k2c.com"
-                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-2 text-slate-100 focus:border-indigo-500 focus:outline-none"
+                  placeholder="bebeng@k2c.com"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-1.5 text-slate-100 focus:border-indigo-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Password Baru Login *</label>
+                <label className="block text-slate-300 font-semibold mb-0.5">Password Baru Login *</label>
                 <input
                   type="text"
                   required
                   value={headPassword}
                   onChange={(e) => setHeadPassword(e.target.value)}
-                  placeholder="Masukkan password baru..."
-                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-2 text-slate-100 focus:border-indigo-500 focus:outline-none font-mono"
+                  placeholder="1234"
+                  className="w-full rounded-lg bg-slate-950 border border-slate-800 p-1.5 text-slate-100 focus:border-indigo-500 focus:outline-none font-mono"
                 />
               </div>
 
@@ -318,7 +348,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={savingHead}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow-md transition-all cursor-pointer ml-auto text-xs"
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow-md transition-all cursor-pointer ml-auto text-xs"
                 >
                   {savingHead ? "Menyimpan..." : "Simpan Profil Head"}
                 </button>

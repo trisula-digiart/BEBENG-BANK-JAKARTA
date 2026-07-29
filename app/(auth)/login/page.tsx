@@ -24,13 +24,42 @@ export default function LoginPage() {
       const supabase = createBrowserClient();
 
       // =========================================================================
-      // 1. MASTER FALLBACK KHUSUS HEAD AREA (MANONG@K2C.COM - GUARANTEED ACCESS)
+      // 1. CEK DINAMIS KE localStorage HEAD_PROFILE (YANG DIUBAH DARI /settings)
       // =========================================================================
-      if (cleanEmail === "manong@k2c.com") {
+      const savedHeadProfile = localStorage.getItem("HEAD_PROFILE");
+      if (savedHeadProfile) {
+        try {
+          const headData = JSON.parse(savedHeadProfile);
+          if (
+            headData.email &&
+            headData.email.toLowerCase().trim() === cleanEmail &&
+            headData.password.trim() === cleanPassword
+          ) {
+            const headSession = {
+              id: "head-custom-id",
+              email: headData.email,
+              username: headData.username || "ACHMAD AKBAR (Head Area)",
+              role: "HEAD_AREA",
+              unit_name: headData.unit_name || "KCP Walikota (Sentra Mikro Jkt Timur)",
+              sentra_mikro: headData.sentra_mikro || "Sentra Mikro Jkt Timur",
+            };
+
+            localStorage.setItem("app_user", JSON.stringify(headSession));
+            router.push("/head-area");
+            router.refresh();
+            return;
+          }
+        } catch (e) {}
+      }
+
+      // =========================================================================
+      // 2. DEFAULT HARDCODE MASTER FALLBACK UNTUK HEAD AREA
+      // =========================================================================
+      if (cleanEmail === "manong@k2c.com" && cleanPassword === "12345678") {
         const headSession = {
           id: "head-manong-master-id",
           email: "manong@k2c.com",
-          username: "Manong (Head Area)",
+          username: "ACHMAD AKBAR (Head Area)",
           role: "HEAD_AREA",
           unit_name: "KCP Walikota (Sentra Mikro Jkt Timur)",
           sentra_mikro: "Sentra Mikro Jkt Timur",
@@ -43,7 +72,7 @@ export default function LoginPage() {
       }
 
       // =========================================================================
-      // 2. DIRECT QUERY KE TABEL public.app_users (UNTUK AKUN UNIT WORKER)
+      // 3. DIRECT QUERY KE TABEL public.app_users (UNTUK AKUN UNIT WORKER)
       // =========================================================================
       const { data: appUser, error: appUserError } = await supabase
         .from("app_users")
@@ -57,7 +86,6 @@ export default function LoginPage() {
       }
 
       if (appUser) {
-        // SET USER SESSION KE LOCALSTORAGE
         const userSession = {
           id: appUser.id,
           email: appUser.username,
@@ -69,7 +97,6 @@ export default function LoginPage() {
 
         localStorage.setItem("app_user", JSON.stringify(userSession));
 
-        // REDIRECT BERDASARKAN ROLE
         if (appUser.role === "HEAD_AREA") {
           router.push("/head-area");
         } else {
@@ -80,7 +107,7 @@ export default function LoginPage() {
       }
 
       // =========================================================================
-      // 3. FALLBACK CEK KE TABEL PROFILES / DUMMY CREDENTIALS
+      // 4. FALLBACK CEK KE TABEL PROFILES
       // =========================================================================
       const { data: profile } = await supabase
         .from("profiles")
@@ -109,7 +136,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Jika tidak ditemukan di tabel mana pun
       throw new Error("Email/Username atau Password tidak cocok. Silakan periksa kembali.");
     } catch (err: any) {
       console.error("Login Exception Caught:", err);
