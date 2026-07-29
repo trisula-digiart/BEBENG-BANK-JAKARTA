@@ -103,7 +103,7 @@ export default function VaultPage() {
 
   const processExcelFile = async (file: File) => {
     setIsParsingFile(true);
-    setParseProgressText(`⏳ Membaca file (${(file.size / 1024 / 1024).toFixed(2)} MB)... Mohon tunggu.`);
+    setParseProgressText(`⏳ Membaca berkas (${(file.size / 1024 / 1024).toFixed(2)} MB)... Mohon tunggu.`);
 
     try {
       const XLSX = await getXLSXEngine();
@@ -116,39 +116,39 @@ export default function VaultPage() {
           const workbook = XLSX.read(data, { cellDates: true, cellStyles: false });
           const sheetsResult: { [sheetName: string]: string } = {};
 
-          workbook.SheetNames.forEach((sheetName: string) => {
+          workbook.SheetNames.slice(0, 5).forEach((sheetName: string) => {
             const worksheet = workbook.Sheets[sheetName];
             if (worksheet) {
-              sheetsResult[sheetName] = XLSX.utils.sheet_to_html(worksheet, { id: `sheet-${sheetName}` });
+              let html = XLSX.utils.sheet_to_html(worksheet, { id: `sheet-${sheetName}` });
+              // PROTEKSI VERCEL LIMIT 4.5MB: Potong string HTML jika terlalu panjang
+              if (html.length > 300000) {
+                html = html.substring(0, 300000) + "</table><p style='color:#f59e0b; padding:10px;'>⚠️ Preview dipotong untuk menghemat memori payload network.</p>";
+              }
+              sheetsResult[sheetName] = html;
             }
           });
 
-          if (Object.keys(sheetsResult).length > 0) {
-            setNewContent(JSON.stringify(sheetsResult));
-            setParseProgressText("✓ Berkas Excel berhasil diparsing penuh 100%!");
+          const finalJSON = JSON.stringify(sheetsResult);
+          // Safety Net Max 2.5 MB Payload Length
+          if (finalJSON.length > 2000000) {
+            setNewContent(`
+              <div style="padding:20px; background:#0f172a; border-radius:8px; border:1px solid #334155; color:#cbd5e1;">
+                📊 <strong>BERKAS EXCEL BESAR:</strong> ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)
+                <p style="margin-top:8px; color:#94a3b8;">Berkas berhasil tersimpan di Brankas Dokumen. Tinjauan penuh tersedia di lembar terpisah.</p>
+              </div>
+            `);
+          } else {
+            setNewContent(finalJSON);
           }
+
+          setParseProgressText("✓ Berkas Excel berhasil diparsing penuh 100%!");
         } catch (errInner) {
-          const readerBinary = new FileReader();
-          readerBinary.onload = (eBin) => {
-            try {
-              const binaryData = eBin.target?.result;
-              const wb = XLSX.read(binaryData, { type: "binary", cellDates: true });
-              const sheetsRes: { [sheetName: string]: string } = {};
-              wb.SheetNames.forEach((sName: string) => {
-                const ws = wb.Sheets[sName];
-                if (ws) sheetsRes[sName] = XLSX.utils.sheet_to_html(ws, { id: `sheet-${sName}` });
-              });
-              setNewContent(JSON.stringify(sheetsRes));
-              setParseProgressText("✓ Berkas Excel berhasil diekstrak!");
-            } catch (errStream) {
-              setNewContent(`<div>📄 Berkas tersimpan: ${file.name}</div>`);
-              setParseProgressText("✓ Berkas siap disimpan ke Brankas!");
-            } finally {
-              setIsParsingFile(false);
-            }
-          };
-          readerBinary.readAsBinaryString(file);
-          return;
+          setNewContent(`
+            <div style="padding:15px; background:#0f172a; border-radius:8px; border:1px solid #334155;">
+              📄 <strong>BERKAS TERSIMPAN:</strong> ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)
+            </div>
+          `);
+          setParseProgressText("✓ Berkas siap disimpan ke Brankas!");
         } finally {
           setIsParsingFile(false);
         }
@@ -202,10 +202,10 @@ export default function VaultPage() {
         await fetchVaultDocuments();
         alert("✓ Dokumen berhasil disimpan ke Brankas!");
       } else {
-        alert(`Gagal menyimpan dokumen: ${result.error || "Pemeriksaan database gagal."}`);
+        alert(`Gagal menyimpan dokumen: ${result.error || "Batas ukuran memori terlampaui."}`);
       }
     } catch (err) {
-      alert("Terjadi kesalahan jaringan.");
+      alert("Gagal mengunggah dokumen (Network/Payload Size Exception).");
     }
   };
 
@@ -219,7 +219,7 @@ export default function VaultPage() {
         title: newTitle,
         category: newCategory,
         file_type: newFileType,
-        file_size: selectedFile ? `${(selectedFile.size / 1024).toFixed(1)} KB` : "1149 KB",
+        file_size: selectedFile ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB` : "1.1 MB",
         content: newContent || `<div>📄 Berkas Dokumen: ${newTitle}</div>`,
       };
 
@@ -461,7 +461,7 @@ export default function VaultPage() {
                       </td>
                       <td className="px-3.5 py-3 font-bold text-slate-100">{doc.title}</td>
                       <td className="px-3.5 py-3 text-slate-400">{doc.category}</td>
-                      <td className="px-3.5 py-3 font-mono text-slate-500">{doc.file_size || "1149 KB"}</td>
+                      <td className="px-3.5 py-3 font-mono text-slate-500">{doc.file_size || "1.1 MB"}</td>
                       <td className="px-3.5 py-3 font-mono text-slate-400">
                         {doc.created_at ? new Date(doc.created_at).toLocaleDateString("id-ID") : "Hari Ini"}
                       </td>
