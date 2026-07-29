@@ -48,10 +48,18 @@ export default function VaultPage() {
     }
   }, []);
 
+  // Fetch Dokumen Brankas dengan Anti-Cache Timestamp
   const fetchVaultDocuments = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/vault");
+      const timestamp = Date.now();
+      const res = await fetch(`/api/vault?_t=${timestamp}`, {
+        cache: "no-store",
+        headers: {
+          "Pragma": "no-cache",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+      });
       const result = await res.json();
       if (res.ok && Array.isArray(result.data)) {
         setDocuments(result.data);
@@ -66,7 +74,10 @@ export default function VaultPage() {
   // Fetch Rekap Data Eksekusi dengan Filter Periode Harian / Mingguan / Bulanan
   const fetchExecutionRecaps = useCallback(async () => {
     try {
-      const res = await fetch(`/api/executions?date=${selectedDate}&period_type=${periodType}`);
+      const timestamp = Date.now();
+      const res = await fetch(`/api/executions?date=${selectedDate}&period_type=${periodType}&_t=${timestamp}`, {
+        cache: "no-store",
+      });
       const result = await res.json();
       if (res.ok && Array.isArray(result.data)) {
         setExecutionRecaps(result.data);
@@ -185,7 +196,14 @@ export default function VaultPage() {
         body: JSON.stringify(docToSave),
       });
 
-      if (res.ok) await fetchVaultDocuments();
+      const result = await res.json();
+
+      if (res.ok && result.success) {
+        await fetchVaultDocuments();
+        alert("✓ Dokumen berhasil disimpan ke Brankas!");
+      } else {
+        alert(`Gagal menyimpan dokumen: ${result.error || "Pemeriksaan database gagal."}`);
+      }
     } catch (err) {
       alert("Terjadi kesalahan jaringan.");
     }
@@ -202,7 +220,7 @@ export default function VaultPage() {
         category: newCategory,
         file_type: newFileType,
         file_size: selectedFile ? `${(selectedFile.size / 1024).toFixed(1)} KB` : "1149 KB",
-        content: newContent || "Isi konten dokumen...",
+        content: newContent || `<div>📄 Berkas Dokumen: ${newTitle}</div>`,
       };
 
       await handleSaveDocument(payload);
@@ -354,6 +372,9 @@ export default function VaultPage() {
               <div className="mt-2 text-xs text-emerald-400 font-mono font-semibold">
                 ✓ File terpilih: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
               </div>
+            )}
+            {parseProgressText && (
+              <div className="mt-1 text-[11px] text-amber-400 font-mono">{parseProgressText}</div>
             )}
           </div>
 
