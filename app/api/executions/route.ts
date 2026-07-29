@@ -9,7 +9,7 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// GET: Ambil SELURUH Data Eksekusi
+// GET: Ambil SELURUH Data Eksekusi (Diatur No-Cache Mutlak)
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -21,17 +21,23 @@ export async function GET() {
 
     if (error) {
       console.error("GET executions DB error:", error);
-      return NextResponse.json({ data: [] }, { status: 200 });
+      return NextResponse.json(
+        { data: [] },
+        { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate" } }
+      );
     }
 
-    return NextResponse.json({ data: data || [] }, { status: 200 });
+    return NextResponse.json(
+      { data: data || [] },
+      { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate" } }
+    );
   } catch (err: any) {
     console.error("GET executions exception:", err);
     return NextResponse.json({ data: [] }, { status: 200 });
   }
 }
 
-// POST: Simpan Data Persisten Tanpa Hambatan Tipe Data
+// POST: Simpan Data Persisten ke Database Supabase
 export async function POST(req: Request) {
   try {
     const body = await req.json();

@@ -40,10 +40,8 @@ export interface ExecutionGridProps {
   readOnly?: boolean;
 }
 
-const LOCAL_STORAGE_KEY = "BANK_EMOK_EXECUTION_CACHE_PERMANENT";
-
-// Sub-komponen Input khusus agar kursor TIDAK PERNAH LONCAT/STUCK saat ngetik
-function CellInput({
+// Sub-komponen CellInput dengan penanganan Navigasi TAB Natif & Preservasi Fokus
+function SeamlessCellInput({
   value,
   onChange,
   disabled,
@@ -56,15 +54,22 @@ function CellInput({
   className?: string;
   type?: string;
 }) {
-  const [localVal, setLocalVal] = useState<string | number>(value ?? "");
+  const [localValue, setLocalValue] = useState<string | number>(value ?? "");
 
   useEffect(() => {
-    setLocalVal(value ?? "");
+    setLocalValue(value ?? "");
   }, [value]);
 
   const handleBlur = () => {
-    if (localVal !== value) {
-      onChange(type === "number" ? Number(localVal) : localVal);
+    if (localValue !== value) {
+      onChange(type === "number" ? Number(localValue) : localValue);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleBlur();
     }
   };
 
@@ -72,9 +77,10 @@ function CellInput({
     <input
       type={type}
       disabled={disabled}
-      value={localVal}
-      onChange={(e) => setLocalVal(e.target.value)}
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
       onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
       className={className}
     />
   );
@@ -97,16 +103,7 @@ export function ExecutionGrid({
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
 
-  // Sync ke LocalStorage agar anti-hilang saat F5
-  const saveToLocalCache = (data: ExecutionRowData[]) => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.error("Local storage save error", e);
-    }
-  };
-
-  // Fetch Data dari API & LocalCache
+  // Fetch Data dari API
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
@@ -114,25 +111,15 @@ export function ExecutionGrid({
     }
     setLoading(true);
 
-    // Load Local Cache First
-    try {
-      const local = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (local) {
-        const parsed = JSON.parse(local);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setInternalRows(parsed);
-        }
-      }
-    } catch (e) {
-      console.error("Read local cache error", e);
-    }
-
     try {
       const timestamp = Date.now();
-      const res = await fetch(`/api/executions?_t=${timestamp}`, { cache: "no-store" });
+      const res = await fetch(`/api/executions?_t=${timestamp}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
       const result = await res.json();
 
-      if (res.ok && Array.isArray(result.data) && result.data.length > 0) {
+      if (res.ok && Array.isArray(result.data)) {
         const mappedApi: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
@@ -157,7 +144,6 @@ export function ExecutionGrid({
         }));
 
         setInternalRows(mappedApi);
-        saveToLocalCache(mappedApi);
       }
     } catch (err) {
       console.error("Failed to fetch execution rows:", err);
@@ -200,28 +186,27 @@ export function ExecutionGrid({
     if (!rowData) {
       const updated = [...internalRows, newRow];
       setInternalRows(updated);
-      saveToLocalCache(updated);
       autoSaveRow(newRow, updated.length - 1);
     }
   };
 
-  // Handle Perubahan Sel
+  // Handle Perubahan Sel Tanpa Memotong Fokus TAB Keyboard
   const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
-    const updated = [...internalRows];
-    if (updated[index]) {
-      updated[index] = { ...updated[index], [field]: value };
-      setInternalRows(updated);
-      saveToLocalCache(updated);
-
-      if (onSaveRow) {
-        onSaveRow(updated[index]);
-      } else {
+    setInternalRows((prev) => {
+      const updated = [...prev];
+      if (updated[index]) {
+        updated[index] = { ...updated[index], [field]: value };
         autoSaveRow(updated[index], index);
       }
+      return updated;
+    });
+
+    if (onSaveRow && rows[index]) {
+      onSaveRow({ ...rows[index], [field]: value });
     }
   };
 
-  // Auto Save ke Supabase Backend API
+  // Auto Save
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
@@ -241,14 +226,11 @@ export function ExecutionGrid({
       const result = await res.json();
 
       if (res.ok && result.data) {
+        // Update ID tanpa mengganti key DOM agar kursor TAB tidak lepas
         setInternalRows((prev) => {
           const newRows = [...prev];
           if (newRows[rowIndex]) {
-            newRows[rowIndex] = { 
-              ...newRows[rowIndex], 
-              id: result.data.id || newRows[rowIndex].id 
-            };
-            saveToLocalCache(newRows);
+            newRows[rowIndex].id = result.data.id || newRows[rowIndex].id;
           }
           return newRows;
         });
@@ -273,9 +255,7 @@ export function ExecutionGrid({
         }
       }
       if (!rowData) {
-        const updated = internalRows.filter((_, i) => i !== index);
-        setInternalRows(updated);
-        saveToLocalCache(updated);
+        setInternalRows((prev) => prev.filter((_, i) => i !== index));
       }
     }
   };
@@ -338,7 +318,7 @@ export function ExecutionGrid({
               </button>
             )}
             <span className="text-[11px] text-slate-400 font-mono">
-              📊 <strong>Tabel Eksekusi Debitur:</strong> Isi nama debitur, plafon, line proses & keterangan.
+              📊 <strong>Tabel Eksekusi Debitur:</strong> Tekan <strong>TAB</strong> pada keyboard untuk pindah kolom secara lancar.
             </span>
           </div>
         </div>
@@ -384,14 +364,14 @@ export function ExecutionGrid({
                 </tr>
               ) : (
                 rows.map((row, idx) => (
-                  <tr key={row.id || idx} className="hover:bg-slate-800/30 transition-colors">
+                  <tr key={`row-${idx}`} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-2 border-r border-slate-800 font-mono text-slate-500 text-center">{idx + 1}</td>
                     <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "bekasi"}</td>
                     <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "susanti"}</td>
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         disabled={isReadOnly}
                         value={row.nama_sm || ""}
                         onChange={(val) => handleCellChange(idx, "nama_sm", val)}
@@ -401,7 +381,7 @@ export function ExecutionGrid({
 
                     {/* Input NAMA DEBITUR */}
                     <td className="p-1 border-r border-slate-800 font-bold text-blue-400">
-                      <CellInput
+                      <SeamlessCellInput
                         disabled={isReadOnly}
                         value={row.nama_debitur || ""}
                         onChange={(val) => handleCellChange(idx, "nama_debitur", val)}
@@ -411,7 +391,7 @@ export function ExecutionGrid({
 
                     {/* Input BIDANG USAHA */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         disabled={isReadOnly}
                         value={row.bidang_usaha || ""}
                         onChange={(val) => handleCellChange(idx, "bidang_usaha", val)}
@@ -421,7 +401,7 @@ export function ExecutionGrid({
 
                     {/* Input NO TABUNGAN */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         disabled={isReadOnly}
                         value={row.no_tabungan || ""}
                         onChange={(val) => handleCellChange(idx, "no_tabungan", val)}
@@ -431,7 +411,7 @@ export function ExecutionGrid({
 
                     {/* Input NO PINJAMAN */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         disabled={isReadOnly}
                         value={row.no_pinjaman || ""}
                         onChange={(val) => handleCellChange(idx, "no_pinjaman", val)}
@@ -445,7 +425,7 @@ export function ExecutionGrid({
                         disabled={isReadOnly}
                         value={row.line_proses || "SM"}
                         onChange={(e) => handleCellChange(idx, "line_proses", e.target.value)}
-                        className="w-full bg-amber-200 font-bold text-slate-950 border border-amber-300 rounded px-1.5 py-1 focus:outline-none text-xs"
+                        className="w-full bg-amber-200 font-bold text-slate-950 border border-amber-300 rounded px-1.5 py-1 focus:outline-none text-xs cursor-pointer"
                       >
                         <option value="SM">SM</option>
                         <option value="BOOKING">BOOKING</option>
@@ -457,7 +437,7 @@ export function ExecutionGrid({
 
                     {/* Input PLAFON */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         type="number"
                         disabled={isReadOnly}
                         value={row.plafon || 0}
@@ -468,7 +448,7 @@ export function ExecutionGrid({
 
                     {/* Input NETT BOOKING */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         type="number"
                         disabled={isReadOnly}
                         value={row.nett_booking || 0}
@@ -479,7 +459,7 @@ export function ExecutionGrid({
 
                     {/* Input TGL CAIR */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         disabled={isReadOnly}
                         value={row.tgl_cair || ""}
                         onChange={(val) => handleCellChange(idx, "tgl_cair", val)}
@@ -489,7 +469,7 @@ export function ExecutionGrid({
 
                     {/* Input PERIODE BULAN */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         disabled={isReadOnly}
                         value={row.periode_bulan || ""}
                         onChange={(val) => handleCellChange(idx, "periode_bulan", val)}
@@ -543,7 +523,7 @@ export function ExecutionGrid({
 
                     {/* Input KETERANGAN */}
                     <td className="p-1 border-r border-slate-800">
-                      <CellInput
+                      <SeamlessCellInput
                         disabled={isReadOnly}
                         value={row.keterangan || ""}
                         onChange={(val) => handleCellChange(idx, "keterangan", val)}

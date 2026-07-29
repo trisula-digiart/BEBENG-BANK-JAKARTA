@@ -30,7 +30,7 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Consolidated Executions
+  // Fetch Consolidated Executions Realtime
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
       const timestamp = Date.now();
@@ -79,7 +79,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // REALTIME LISTENER + FAST POLLING
+    // DUAL-ENGINE INSTANT SYNC (REALTIME CHANNEL + FAST POLLING 1 DETIK)
     const channel = supabase
       .channel("realtime_head_executions_channel")
       .on(
@@ -93,7 +93,7 @@ export default function HeadExecutionPage() {
 
     const pollInterval = setInterval(() => {
       fetchConsolidatedExecutions();
-    }, 1500);
+    }, 1000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -101,7 +101,7 @@ export default function HeadExecutionPage() {
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Logika Penyaringan Safe Type-Checking (Fix Build Vercel)
+  // Logika Penyaringan
   useEffect(() => {
     let result = [...allData];
 
