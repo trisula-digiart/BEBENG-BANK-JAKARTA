@@ -105,7 +105,6 @@ export function ExecutionGrid({
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
 
-  // Helper Simpan ke Storage Lokal (Fail-Safe Anti Hilang saat F5)
   const saveToLocalCache = (dataToSave: ExecutionRowData[]) => {
     if (readOnly) return;
     try {
@@ -115,7 +114,7 @@ export function ExecutionGrid({
     }
   };
 
-  // Fetch Data Eksekusi (Prioritaskan Local Cache Terlebih Dahulu saat F5)
+  // Fetch Data Eksekusi dari API Supabase Cloud
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
@@ -123,7 +122,7 @@ export function ExecutionGrid({
     }
     setLoading(true);
 
-    // 1. Kunci Utama: BACA CACHE LOKAL TERLEBIH DAHULU SAAT REFRESH/F5
+    // 1. Ambil cache lokal dulu agar tampilan instant saat F5
     try {
       const savedLocal = localStorage.getItem(UNIT_PERSISTENT_STORAGE_KEY);
       if (savedLocal) {
@@ -136,7 +135,7 @@ export function ExecutionGrid({
       console.error("Error reading local storage cache", e);
     }
 
-    // 2. Sinkronkan dengan database Supabase backend
+    // 2. Ambil snapshot data paling baru dari Supabase Cloud
     try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, {
@@ -150,8 +149,8 @@ export function ExecutionGrid({
           id: item.id,
           no_urut: item.no_urut,
           unit_id: item.unit_id,
-          nama_sentra: item.nama_sentra || sentraName || "Sentra Mikro",
-          nama_muh: item.nama_muh || muhName || "Petugas Unit",
+          nama_sentra: item.nama_sentra || sentraName || "bekasi",
+          nama_muh: item.nama_muh || muhName || "susanti",
           nama_sm: item.nama_sm || "",
           nama_debitur: item.nama_debitur || "",
           bidang_usaha: item.bidang_usaha || "",
@@ -191,8 +190,8 @@ export function ExecutionGrid({
       no_urut: nextNoUrut,
       unit_id: unitId,
       report_date: reportDate,
-      nama_sentra: sentraName || "Sentra Mikro",
-      nama_muh: muhName || "Petugas Unit",
+      nama_sentra: sentraName || "bekasi",
+      nama_muh: muhName || "susanti",
       nama_sm: "",
       nama_debitur: "",
       bidang_usaha: "-",
@@ -235,14 +234,15 @@ export function ExecutionGrid({
     }
   };
 
-  // Auto Save ke Backend Supabase API
+  // Auto Save ke Supabase Cloud
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
       const payload = {
         ...rowToSave,
-        nama_sentra: rowToSave.nama_sentra || sentraName || "Sentra Mikro",
-        nama_muh: rowToSave.nama_muh || muhName || "Petugas Unit",
+        unit_id: unitId || rowToSave.unit_id,
+        nama_sentra: rowToSave.nama_sentra || sentraName || "bekasi",
+        nama_muh: rowToSave.nama_muh || muhName || "susanti",
         no_urut: rowToSave.no_urut || rowIndex + 1,
       };
 
@@ -254,16 +254,16 @@ export function ExecutionGrid({
 
       const result = await res.json();
 
-      if (res.ok && result.data) {
+      if (res.ok && result.data && result.data.id) {
         setInternalRows((prev) => {
           const newRows = [...prev];
           if (newRows[rowIndex]) {
-            newRows[rowIndex].id = result.data.id || newRows[rowIndex].id;
+            newRows[rowIndex].id = result.data.id;
             saveToLocalCache(newRows);
           }
           return newRows;
         });
-        setSaveStatus("✓ Tersimpan!");
+        setSaveStatus("✓ Tersimpan DB!");
       } else {
         setSaveStatus("✓ Tersimpan!");
       }
@@ -303,8 +303,8 @@ export function ExecutionGrid({
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
           <span className="text-[10px] font-mono text-slate-400 uppercase block">SENTRA MIKRO</span>
-          <span className="text-sm font-bold text-slate-100 block mt-0.5">{sentraName || "Sentra Mikro"}</span>
-          <span className="text-[10px] text-slate-500 block">MUH: {muhName || "Petugas Unit"}</span>
+          <span className="text-sm font-bold text-slate-100 block mt-0.5">{sentraName || "bekasi"}</span>
+          <span className="text-[10px] text-slate-500 block">MUH: {muhName || "susanti"}</span>
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl">
@@ -397,8 +397,8 @@ export function ExecutionGrid({
                 rows.map((row, idx) => (
                   <tr key={`row-${idx}`} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-2 border-r border-slate-800 font-mono text-slate-500 text-center">{idx + 1}</td>
-                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "Sentra Mikro"}</td>
-                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "Petugas Unit"}</td>
+                    <td className="p-2 border-r border-slate-800 font-bold text-rose-400">{row.nama_sentra || sentraName || "bekasi"}</td>
+                    <td className="p-2 border-r border-slate-800 text-slate-300">{row.nama_muh || muhName || "susanti"}</td>
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">

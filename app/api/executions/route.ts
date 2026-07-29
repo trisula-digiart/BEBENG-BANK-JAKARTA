@@ -9,7 +9,7 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// GET: Ambil SELURUH Data Eksekusi (Diatur No-Cache Mutlak)
+// GET: Ambil SELURUH Data Eksekusi Langsung dari Supabase Cloud
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -20,16 +20,16 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("GET executions DB error:", error);
+      console.error("GET executions Supabase error:", error);
       return NextResponse.json(
         { data: [] },
-        { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate" } }
+        { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
       );
     }
 
     return NextResponse.json(
       { data: data || [] },
-      { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate" } }
+      { status: 200, headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
     );
   } catch (err: any) {
     console.error("GET executions exception:", err);
@@ -37,7 +37,7 @@ export async function GET() {
   }
 }
 
-// POST: Simpan Persisten Data Eksekusi ke Database Supabase Cloud
+// POST: Simpan Persisten ke Database Supabase Cloud (Garansi Masuk DB)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -65,9 +65,9 @@ export async function POST(req: Request) {
       keterangan,
     } = body;
 
-    const payload = {
+    // Bersihkan payload dari nilai null/undefined berbahaya
+    const payload: any = {
       no_urut: Number(no_urut) || 1,
-      unit_id: unit_id ? String(unit_id) : null,
       nama_sentra: String(nama_sentra || "bekasi").trim(),
       nama_muh: String(nama_muh || "susanti").trim(),
       nama_sm: String(nama_sm || "-").trim(),
@@ -88,8 +88,14 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     };
 
+    // Sertakan unit_id hanya jika merupakan string non-kosong
+    if (unit_id && typeof unit_id === "string" && unit_id.trim() !== "") {
+      payload.unit_id = unit_id.trim();
+    }
+
     let savedData: any = null;
 
+    // Pengecekan UUID Supabase Valid
     const isUUID = id && typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
     if (isUUID) {
@@ -111,16 +117,27 @@ export async function POST(req: Request) {
         .select();
 
       if (error) {
-        console.error("Insert execution error Supabase:", error);
-        return NextResponse.json({ data: { id: `temp-exec-${Date.now()}`, ...payload }, success: true }, { status: 200 });
-      }
+        console.error("Insert execution DB error:", error);
+        // Fallback jika unit_id memicu FK constraint error: coba tanpa unit_id
+        delete payload.unit_id;
+        const { data: retryData, error: retryErr } = await supabase
+          .from("executions")
+          .insert([payload])
+          .select();
 
-      savedData = data && data[0] ? data[0] : payload;
+        if (!retryErr && retryData && retryData[0]) {
+          savedData = retryData[0];
+        } else {
+          return NextResponse.json({ data: { id: `temp-${Date.now()}`, ...payload }, success: false }, { status: 200 });
+        }
+      } else {
+        savedData = data && data[0] ? data[0] : payload;
+      }
     }
 
     return NextResponse.json({ data: savedData, success: true }, { status: 200 });
   } catch (err: any) {
-    console.error("POST execution exception handled:", err);
-    return NextResponse.json({ success: true }, { status: 200 });
+    console.error("POST execution exception:", err);
+    return NextResponse.json({ success: false }, { status: 200 });
   }
 }

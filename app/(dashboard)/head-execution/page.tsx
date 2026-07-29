@@ -9,8 +9,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const UNIT_PERSISTENT_STORAGE_KEY = "BANK_EMOK_PERSISTENT_GRID_CACHE_V3";
-
 export default function HeadExecutionPage() {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [allData, setAllData] = useState<ExecutionRowData[]>([]);
@@ -32,24 +30,8 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Consolidated Executions Realtime (Supabase + Local Cache Fallback)
+  // Fetch Consolidated Executions
   const fetchConsolidatedExecutions = useCallback(async () => {
-    let combinedData: ExecutionRowData[] = [];
-
-    // 1. Dapatkan cache lokal sebagai pertahanan awal agar instant jika Supabase delayed
-    try {
-      const savedLocal = localStorage.getItem(UNIT_PERSISTENT_STORAGE_KEY);
-      if (savedLocal) {
-        const parsed = JSON.parse(savedLocal);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          combinedData = parsed;
-        }
-      }
-    } catch (e) {
-      console.error("Gagal membaca storage cache lokal:", e);
-    }
-
-    // 2. Tarik data dari API Backend Supabase
     try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, {
@@ -61,7 +43,7 @@ export default function HeadExecutionPage() {
       });
       const result = await res.json();
 
-      if (res.ok && Array.isArray(result.data) && result.data.length > 0) {
+      if (res.ok && Array.isArray(result.data)) {
         const mappedRows: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
@@ -84,21 +66,11 @@ export default function HeadExecutionPage() {
           keterangan: item.keterangan || "",
         }));
 
-        // Gabungkan data API & Local Storage tanpa duplikat
-        const apiMap = new Map();
-        mappedRows.forEach((item) => apiMap.set(item.id || item.nama_debitur, item));
-        combinedData.forEach((item) => {
-          if (!apiMap.has(item.id || item.nama_debitur)) {
-            apiMap.set(item.id || item.nama_debitur, item);
-          }
-        });
-
-        combinedData = Array.from(apiMap.values());
+        setAllData(mappedRows);
       }
     } catch (err) {
       console.error("Gagal mengambil konsolidasi eksekusi dari API:", err);
     } finally {
-      setAllData(combinedData);
       setLoading(false);
     }
   }, []);
@@ -107,7 +79,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // DUAL-ENGINE INSTANT SYNC (REALTIME CHANNEL + FAST POLLING 1 DETIK)
+    // DUAL-ENGINE INSTANT SYNC (REALTIME CHANNEL SUPABASE + FAST POLLING 1 DETIK)
     const channel = supabase
       .channel("realtime_head_executions_channel")
       .on(
@@ -123,22 +95,13 @@ export default function HeadExecutionPage() {
       fetchConsolidatedExecutions();
     }, 1000);
 
-    // Broadcast Listener antar tab browser
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === UNIT_PERSISTENT_STORAGE_KEY) {
-        fetchConsolidatedExecutions();
-      }
-    };
-    window.addEventListener("storage", handleStorageChange);
-
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
-      window.removeEventListener("storage", handleStorageChange);
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Logika Penyaringan
+  // Logika Penyaringan Toleran
   useEffect(() => {
     let result = [...allData];
 
