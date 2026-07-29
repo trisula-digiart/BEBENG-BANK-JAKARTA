@@ -234,12 +234,17 @@ export function ExecutionGrid({
     }
   };
 
-  // Auto Save ke Supabase Cloud
+  // Auto Save Langsung ke Supabase Cloud
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
+      // Jika id adalah ID temporer ('temp_...'), kirim null/undefined agar API melakukan INSERT
+      const cleanId =
+        rowToSave.id && rowToSave.id.startsWith("temp_") ? undefined : rowToSave.id;
+
       const payload = {
         ...rowToSave,
+        id: cleanId,
         unit_id: unitId || rowToSave.unit_id,
         nama_sentra: rowToSave.nama_sentra || sentraName || "bekasi",
         nama_muh: rowToSave.nama_muh || muhName || "susanti",
