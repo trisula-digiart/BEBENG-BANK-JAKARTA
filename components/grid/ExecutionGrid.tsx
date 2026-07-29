@@ -40,6 +40,46 @@ export interface ExecutionGridProps {
   readOnly?: boolean;
 }
 
+const LOCAL_STORAGE_KEY = "BANK_EMOK_EXECUTION_CACHE_PERMANENT";
+
+// Sub-komponen Input khusus agar kursor TIDAK PERNAH LONCAT/STUCK saat ngetik
+function CellInput({
+  value,
+  onChange,
+  disabled,
+  className,
+  type = "text",
+}: {
+  value: string | number;
+  onChange: (val: string | number) => void;
+  disabled?: boolean;
+  className?: string;
+  type?: string;
+}) {
+  const [localVal, setLocalVal] = useState<string | number>(value ?? "");
+
+  useEffect(() => {
+    setLocalVal(value ?? "");
+  }, [value]);
+
+  const handleBlur = () => {
+    if (localVal !== value) {
+      onChange(type === "number" ? Number(localVal) : localVal);
+    }
+  };
+
+  return (
+    <input
+      type={type}
+      disabled={disabled}
+      value={localVal}
+      onChange={(e) => setLocalVal(e.target.value)}
+      onBlur={handleBlur}
+      className={className}
+    />
+  );
+}
+
 export function ExecutionGrid({
   unitId,
   sentraName,
@@ -56,9 +96,17 @@ export function ExecutionGrid({
 
   const rows = rowData || internalRows;
   const isReadOnly = isLocked || readOnly;
-  const saveTimeoutRef = useRef<{ [key: number]: NodeJS.Timeout }>({});
 
-  // Fetch Data Langsung dari Supabase
+  // Sync ke LocalStorage agar anti-hilang saat F5
+  const saveToLocalCache = (data: ExecutionRowData[]) => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error("Local storage save error", e);
+    }
+  };
+
+  // Fetch Data dari API & LocalCache
   const fetchExecutions = useCallback(async () => {
     if (rowData) {
       setLoading(false);
@@ -66,12 +114,25 @@ export function ExecutionGrid({
     }
     setLoading(true);
 
+    // Load Local Cache First
+    try {
+      const local = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setInternalRows(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Read local cache error", e);
+    }
+
     try {
       const timestamp = Date.now();
       const res = await fetch(`/api/executions?_t=${timestamp}`, { cache: "no-store" });
       const result = await res.json();
 
-      if (res.ok && Array.isArray(result.data)) {
+      if (res.ok && Array.isArray(result.data) && result.data.length > 0) {
         const mappedApi: ExecutionRowData[] = result.data.map((item: any) => ({
           id: item.id,
           no_urut: item.no_urut,
@@ -96,6 +157,7 @@ export function ExecutionGrid({
         }));
 
         setInternalRows(mappedApi);
+        saveToLocalCache(mappedApi);
       }
     } catch (err) {
       console.error("Failed to fetch execution rows:", err);
@@ -108,7 +170,7 @@ export function ExecutionGrid({
     fetchExecutions();
   }, [fetchExecutions]);
 
-  // Tambah Baris Baru
+  // Tambah Baris
   const handleAddRow = () => {
     const nextNoUrut = rows.length + 1;
     const newRow: ExecutionRowData = {
@@ -118,8 +180,8 @@ export function ExecutionGrid({
       report_date: reportDate,
       nama_sentra: sentraName || "bekasi",
       nama_muh: muhName || "susanti",
-      nama_sm: "-",
-      nama_debitur: "-",
+      nama_sm: "",
+      nama_debitur: "",
       bidang_usaha: "-",
       no_tabungan: "-",
       no_pinjaman: "-",
@@ -138,40 +200,28 @@ export function ExecutionGrid({
     if (!rowData) {
       const updated = [...internalRows, newRow];
       setInternalRows(updated);
+      saveToLocalCache(updated);
       autoSaveRow(newRow, updated.length - 1);
     }
   };
 
   // Handle Perubahan Sel
   const handleCellChange = (index: number, field: keyof ExecutionRowData, value: any) => {
-    setInternalRows((prev) => {
-      const updated = [...prev];
-      if (updated[index]) {
-        updated[index] = { ...updated[index], [field]: value };
-      }
-      return updated;
-    });
+    const updated = [...internalRows];
+    if (updated[index]) {
+      updated[index] = { ...updated[index], [field]: value };
+      setInternalRows(updated);
+      saveToLocalCache(updated);
 
-    if (onSaveRow) {
-      const current = { ...rows[index], [field]: value };
-      onSaveRow(current);
-    } else {
-      if (saveTimeoutRef.current[index]) {
-        clearTimeout(saveTimeoutRef.current[index]);
+      if (onSaveRow) {
+        onSaveRow(updated[index]);
+      } else {
+        autoSaveRow(updated[index], index);
       }
-
-      saveTimeoutRef.current[index] = setTimeout(() => {
-        setInternalRows((latest) => {
-          if (latest[index]) {
-            autoSaveRow(latest[index], index);
-          }
-          return latest;
-        });
-      }, 600);
     }
   };
 
-  // Auto Save
+  // Auto Save ke Supabase Backend API
   const autoSaveRow = async (rowToSave: ExecutionRowData, rowIndex: number) => {
     setSaveStatus("💾 Menyimpan...");
     try {
@@ -198,6 +248,7 @@ export function ExecutionGrid({
               ...newRows[rowIndex], 
               id: result.data.id || newRows[rowIndex].id 
             };
+            saveToLocalCache(newRows);
           }
           return newRows;
         });
@@ -222,7 +273,9 @@ export function ExecutionGrid({
         }
       }
       if (!rowData) {
-        setInternalRows((prev) => prev.filter((_, i) => i !== index));
+        const updated = internalRows.filter((_, i) => i !== index);
+        setInternalRows(updated);
+        saveToLocalCache(updated);
       }
     }
   };
@@ -338,55 +391,50 @@ export function ExecutionGrid({
                     
                     {/* Input NAMA SM */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
-                        type="text"
+                      <CellInput
                         disabled={isReadOnly}
                         value={row.nama_sm || ""}
-                        onChange={(e) => handleCellChange(idx, "nama_sm", e.target.value)}
+                        onChange={(val) => handleCellChange(idx, "nama_sm", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-100 focus:outline-none focus:border-rose-500 text-xs"
                       />
                     </td>
 
                     {/* Input NAMA DEBITUR */}
                     <td className="p-1 border-r border-slate-800 font-bold text-blue-400">
-                      <input
-                        type="text"
+                      <CellInput
                         disabled={isReadOnly}
                         value={row.nama_debitur || ""}
-                        onChange={(e) => handleCellChange(idx, "nama_debitur", e.target.value)}
+                        onChange={(val) => handleCellChange(idx, "nama_debitur", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-bold text-blue-400 focus:outline-none focus:border-rose-500 text-xs"
                       />
                     </td>
 
                     {/* Input BIDANG USAHA */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
-                        type="text"
+                      <CellInput
                         disabled={isReadOnly}
                         value={row.bidang_usaha || ""}
-                        onChange={(e) => handleCellChange(idx, "bidang_usaha", e.target.value)}
+                        onChange={(val) => handleCellChange(idx, "bidang_usaha", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
                       />
                     </td>
 
                     {/* Input NO TABUNGAN */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
-                        type="text"
+                      <CellInput
                         disabled={isReadOnly}
                         value={row.no_tabungan || ""}
-                        onChange={(e) => handleCellChange(idx, "no_tabungan", e.target.value)}
+                        onChange={(val) => handleCellChange(idx, "no_tabungan", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
                       />
                     </td>
 
                     {/* Input NO PINJAMAN */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
-                        type="text"
+                      <CellInput
                         disabled={isReadOnly}
                         value={row.no_pinjaman || ""}
-                        onChange={(e) => handleCellChange(idx, "no_pinjaman", e.target.value)}
+                        onChange={(val) => handleCellChange(idx, "no_pinjaman", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 font-mono text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
                       />
                     </td>
@@ -409,44 +457,42 @@ export function ExecutionGrid({
 
                     {/* Input PLAFON */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
+                      <CellInput
                         type="number"
                         disabled={isReadOnly}
                         value={row.plafon || 0}
-                        onChange={(e) => handleCellChange(idx, "plafon", Number(e.target.value))}
+                        onChange={(val) => handleCellChange(idx, "plafon", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-emerald-400 font-bold focus:outline-none focus:border-rose-500 text-xs"
                       />
                     </td>
 
                     {/* Input NETT BOOKING */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
+                      <CellInput
                         type="number"
                         disabled={isReadOnly}
                         value={row.nett_booking || 0}
-                        onChange={(e) => handleCellChange(idx, "nett_booking", Number(e.target.value))}
+                        onChange={(val) => handleCellChange(idx, "nett_booking", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-blue-400 font-bold focus:outline-none focus:border-rose-500 text-xs"
                       />
                     </td>
 
                     {/* Input TGL CAIR */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
-                        type="text"
+                      <CellInput
                         disabled={isReadOnly}
                         value={row.tgl_cair || ""}
-                        onChange={(e) => handleCellChange(idx, "tgl_cair", e.target.value)}
+                        onChange={(val) => handleCellChange(idx, "tgl_cair", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 font-mono text-slate-300 focus:outline-none text-[11px]"
                       />
                     </td>
 
                     {/* Input PERIODE BULAN */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
-                        type="text"
+                      <CellInput
                         disabled={isReadOnly}
                         value={row.periode_bulan || ""}
-                        onChange={(e) => handleCellChange(idx, "periode_bulan", e.target.value)}
+                        onChange={(val) => handleCellChange(idx, "periode_bulan", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 font-mono text-slate-300 focus:outline-none text-[11px]"
                       />
                     </td>
@@ -497,11 +543,10 @@ export function ExecutionGrid({
 
                     {/* Input KETERANGAN */}
                     <td className="p-1 border-r border-slate-800">
-                      <input
-                        type="text"
+                      <CellInput
                         disabled={isReadOnly}
                         value={row.keterangan || ""}
-                        onChange={(e) => handleCellChange(idx, "keterangan", e.target.value)}
+                        onChange={(val) => handleCellChange(idx, "keterangan", val)}
                         className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300 focus:outline-none focus:border-rose-500 text-xs"
                       />
                     </td>

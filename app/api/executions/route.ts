@@ -9,7 +9,7 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-// GET: Ambil SELURUH Data Eksekusi dari Supabase Tanpa Terpotong
+// GET: Ambil SELURUH Data Eksekusi
 export async function GET() {
   try {
     const supabase = getSupabaseClient();
@@ -20,7 +20,7 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("GET executions Supabase error:", error);
+      console.error("GET executions DB error:", error);
       return NextResponse.json({ data: [] }, { status: 200 });
     }
 
@@ -31,7 +31,7 @@ export async function GET() {
   }
 }
 
-// POST: Simpan Persisten ke Supabase Cloud
+// POST: Simpan Data Persisten Tanpa Hambatan Tipe Data
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -84,7 +84,6 @@ export async function POST(req: Request) {
 
     let savedData: any = null;
 
-    // Cek apakah ID merupakan UUID valid Supabase
     const isUUID = id && typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 
     if (isUUID) {
