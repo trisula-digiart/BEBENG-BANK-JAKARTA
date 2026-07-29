@@ -15,31 +15,20 @@ function isValidUUID(str: any): boolean {
   return regex.test(str.trim());
 }
 
-// GET: Fetch Global Consolidation Executions untuk Head & Unit
+// GET: Penarikan Data Penuh untuk Head & Unit tanpa Filter Memblokir
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const dateParam = searchParams.get("date") || new Date().toISOString().split("T")[0];
     const unitId = searchParams.get("unit_id");
 
     const supabase = getSupabaseClient();
 
-    const targetDate = new Date(dateParam);
-    const year = targetDate.getFullYear();
-    const month = targetDate.getMonth();
-
-    const startDate = new Date(year, month, 1).toISOString().split("T")[0];
-    const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0];
-
-    // Penarikan Utama: Seluruh Data Eksekusi Bulan Berjalan
     let query = supabase
       .from("executions")
       .select("*")
-      .gte("tgl_cair", startDate)
-      .lte("tgl_cair", endDate)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: false });
 
-    // Jika dipanggil dari unit spesifik yang memiliki UUID valid, filter unit_id
+    // Hanya saring unit jika dipanggil dari halaman unit yang mempunyai UUID valid
     if (unitId && isValidUUID(unitId)) {
       query = query.eq("unit_id", unitId);
     }
@@ -58,7 +47,7 @@ export async function GET(req: Request) {
   }
 }
 
-// POST: Save/Insert Execution (Garansi 100% Masuk ke Head & Realtime Trigger)
+// POST: Simpan Data Eksekusi Unit (100% Persisten & Terkonek Ke Database)
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -87,13 +76,13 @@ export async function POST(req: Request) {
     } = body;
 
     const cairDate = tgl_cair || new Date().toISOString().split("T")[0];
-    const d = new Date(cairDate);
-    const periodeBulan = `${d.getMonth() + 1}/${d.getFullYear()}`;
+    const now = new Date();
+    const periodeBulan = `${now.getMonth() + 1}/${now.getFullYear()}`;
 
     const sanitizedPayload = {
       no_urut: Number(no_urut) || 1,
       unit_id: isValidUUID(unit_id) ? unit_id : null,
-      nama_sentra: String(nama_sentra || "Sentra Mikro").trim(),
+      nama_sentra: String(nama_sentra || "Sentra Mikro Jkt Timur").trim(),
       nama_muh: String(nama_muh || "MUH Unit").trim(),
       nama_sm: String(nama_sm || "-").trim(),
       nama_debitur: String(nama_debitur || "-").trim(),
@@ -103,7 +92,7 @@ export async function POST(req: Request) {
       line_proses: String(line_proses || "SM").trim(),
       plafon: isNaN(Number(plafon)) ? 0 : Number(plafon),
       nett_booking: isNaN(Number(nett_booking)) ? 0 : Number(nett_booking),
-      tgl_cair: cairDate,
+      tgl_cair: String(cairDate),
       periode_bulan: periodeBulan,
       qris: String(qris || "").trim(),
       jakone_abank: String(jakone_abank || "").trim(),

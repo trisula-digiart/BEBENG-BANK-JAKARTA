@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { ExecutionGrid, ExecutionRowData } from "@/components/grid/ExecutionGrid";
-import { StatCard } from "@/components/dashboard/StatCard";
 import { getTodayDateString, formatDateID } from "@/lib/utils";
 import { createClient } from "@supabase/supabase-js";
 
@@ -18,7 +17,7 @@ export default function HeadExecutionPage() {
   const [appName, setAppName] = useState<string>("Bank Daily Report");
   const [isMounted, setIsMounted] = useState<boolean>(false);
 
-  // State Filter (Default ALL untuk menampilkan seluruh unit secara terbuka)
+  // Filter State
   const [selectedSentra, setSelectedSentra] = useState<string>("ALL");
   const [selectedMuh, setSelectedMuh] = useState<string>("ALL");
 
@@ -31,11 +30,11 @@ export default function HeadExecutionPage() {
     if (savedName) setAppName(savedName);
   }, []);
 
-  // Fetch Consolidated Executions (Memanggil Seluruh Inputan Unit Tanpa Ada Terbuang)
+  // Fetch Penuh Seluruh Data Eksekusi Realtime
   const fetchConsolidatedExecutions = useCallback(async () => {
     try {
       const timestamp = Date.now();
-      const res = await fetch(`/api/executions?date=${selectedDate}&_t=${timestamp}`, {
+      const res = await fetch(`/api/executions?_t=${timestamp}`, {
         cache: "no-store",
         headers: {
           "Pragma": "no-cache",
@@ -80,7 +79,7 @@ export default function HeadExecutionPage() {
     setLoading(true);
     fetchConsolidatedExecutions();
 
-    // DUAL-ENGINE REALTIME SYNC (CHANNEL UTAMA LISTENER HASIL INPUT UNIT)
+    // DUAL-ENGINE REALTIME SINKRONISASI
     const channel = supabase
       .channel("realtime_head_executions_channel")
       .on(
@@ -94,7 +93,7 @@ export default function HeadExecutionPage() {
 
     const pollInterval = setInterval(() => {
       fetchConsolidatedExecutions();
-    }, 3000);
+    }, 2000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -102,7 +101,7 @@ export default function HeadExecutionPage() {
     };
   }, [fetchConsolidatedExecutions]);
 
-  // Handle Filtering Real-Time Multiverse
+  // Handle Filter
   useEffect(() => {
     let result = allData;
     if (selectedSentra !== "ALL") {
@@ -221,130 +220,83 @@ export default function HeadExecutionPage() {
     return (
       <div className="w-full h-64 flex items-center justify-center text-xs text-slate-400">
         <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent mr-2" />
-        Memuat konsolidasi rekap data eksekusi area bulan berjalan...
+        Memuat konsolidasi rekap data eksekusi area...
       </div>
     );
   }
 
   return (
-    <div className="w-full space-y-5 pb-8">
-      {/* 1. TAMPILAN DASHBOARD WEB */}
-      <div className="print:hidden space-y-5">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-mono text-rose-400 mb-1">
-              <span>AREA HEAD MONITORING</span> • <span>WALIKOTA JAKARTA TIMUR</span> • <span className="text-emerald-400 animate-pulse">⚡ LIVE REALTIME (KONSOLIDASI GLOBAL)</span>
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-100">
-              Rekap Data Eksekusi Seluruh Area
-            </h1>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Konsolidasi rekapitulasi data debitur eksekusi bulan berjalan seluruh unit cabang. Data tersimpan otomatis dan sinkron secara realtime.
-            </p>
-          </div>
-
+    <div className="w-full space-y-2 pb-4">
+      {/* 1. TAMPILAN DASHBOARD WEB COMPACT */}
+      <div className="print:hidden space-y-2">
+        {/* Compact Header Toolbar */}
+        <div className="flex flex-wrap items-center justify-between bg-slate-900 border border-slate-800 p-2.5 rounded-xl gap-2">
           <div className="flex items-center gap-3">
-            <label className="text-xs font-medium text-slate-400">Pilih Acuan Bulan:</label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 focus:border-rose-500 focus:outline-none"
-            />
+            <h1 className="text-base font-bold text-slate-100 flex items-center gap-2">
+              <span>📋 Rekap Eksekusi Area</span>
+              <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-mono animate-pulse">
+                ⚡ LIVE REALTIME ALL UNITS
+              </span>
+            </h1>
           </div>
-        </div>
 
-        {/* Area Metrics Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <StatCard
-            title="TOTAL DEBITUR BULAN BERJALAN"
-            value={`${totalDebitur} Debitur`}
-            description={formatDateID(selectedDate)}
-            variant="info"
-          />
-          <StatCard
-            title="TOTAL PLAFON BULAN BERJALAN"
-            value={formatRupiah(totalPlafonArea)}
-            description="Akumulasi Hasil Filter"
-            variant="default"
-          />
-          <StatCard
-            title="TOTAL NETT BOOKING BULAN BERJALAN"
-            value={formatRupiah(totalNettBookingArea)}
-            description="Realisasi Booking Hasil Filter"
-            variant="success"
-          />
-        </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {/* Ultra Compact Metric Bar */}
+            <div className="hidden lg:flex items-center gap-3 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800 font-mono text-[11px]">
+              <span className="text-slate-400">Total: <strong className="text-rose-400">{totalDebitur} Debitur</strong></span>
+              <span className="text-slate-700">|</span>
+              <span className="text-slate-400">Plafon: <strong className="text-emerald-400">{formatRupiah(totalPlafonArea)}</strong></span>
+              <span className="text-slate-700">|</span>
+              <span className="text-slate-400">Nett: <strong className="text-blue-400">{formatRupiah(totalNettBookingArea)}</strong></span>
+            </div>
 
-        {/* Filter & Action Toolbar */}
-        <div className="flex flex-wrap items-center justify-between bg-slate-900 border border-slate-800 p-3 rounded-xl gap-3">
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 font-medium">Filter Sentra:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 text-[11px]">Sentra:</span>
               <select
                 value={selectedSentra}
                 onChange={(e) => setSelectedSentra(e.target.value)}
-                className="bg-slate-950 border border-slate-800 text-slate-200 rounded-lg px-2.5 py-1.5 focus:border-rose-500 focus:outline-none"
+                className="bg-slate-950 border border-slate-800 text-slate-200 rounded px-2 py-1 text-xs focus:outline-none"
               >
-                <option value="ALL">-- Semua Sentra --</option>
+                <option value="ALL">-- Semua --</option>
                 {sentraOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 font-medium">Filter MUH:</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-400 text-[11px]">MUH:</span>
               <select
                 value={selectedMuh}
                 onChange={(e) => setSelectedMuh(e.target.value)}
-                className="bg-slate-950 border border-slate-800 text-slate-200 rounded-lg px-2.5 py-1.5 focus:border-rose-500 focus:outline-none"
+                className="bg-slate-950 border border-slate-800 text-slate-200 rounded px-2 py-1 text-xs focus:outline-none"
               >
-                <option value="ALL">-- Semua MUH --</option>
+                <option value="ALL">-- Semua --</option>
                 {muhOptions.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
+                  <option key={m} value={m}>{m}</option>
                 ))}
               </select>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
             <button
               onClick={handleExportExcel}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-lg shadow-md shadow-emerald-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded transition-all cursor-pointer"
             >
-              <span>📥</span> Export Excel (.xls)
+              📥 Excel
             </button>
             <button
               onClick={handlePrint}
-              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded transition-all cursor-pointer"
             >
-              <span>🖨️</span> Cetak Laporan PDF
+              🖨️ PDF
             </button>
           </div>
         </div>
 
-        {/* Grid Container Read-Only */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-xl">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wide flex items-center gap-2">
-              <span>📋 Tabel Rekapitulasi Eksekusi Area (Konsolidasi Global All Unit)</span>
-              <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded font-mono">
-                LIVE REALTIME ACTIVE
-              </span>
-            </h3>
-            <span className="text-[11px] font-mono text-slate-400">
-              Acuan Periode: <span className="text-rose-400">{formatDateID(selectedDate)}</span>
-            </span>
-          </div>
-
+        {/* Maximize Grid Height Area */}
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-2 shadow-2xl">
           {loading ? (
-            <div className="flex h-64 items-center justify-center text-xs text-slate-400">
+            <div className="flex h-96 items-center justify-center text-xs text-slate-400">
               <div className="flex items-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
                 Memuat konsolidasi rekap data eksekusi area...
@@ -365,7 +317,7 @@ export default function HeadExecutionPage() {
       <div className="print-only-container">
         <div style={{ textAlign: "center", marginBottom: "15px" }}>
           <h2 style={{ margin: "0", fontSize: "16pt", textTransform: "uppercase" }}>{appName}</h2>
-          <h3 style={{ margin: "5px 0 0 0", fontSize: "12pt" }}>LAPORAN REKAPITULASI DATA EKSEKUSI DEBITUR AREA (BULAN BERJALAN)</h3>
+          <h3 style={{ margin: "5px 0 0 0", fontSize: "12pt" }}>LAPORAN REKAPITULASI DATA EKSEKUSI DEBITUR AREA</h3>
           <p style={{ margin: "5px 0 0 0", fontSize: "10pt" }}>
             Acuan Periode: <b>{formatDateID(selectedDate)}</b> | Filter Sentra: <b>{selectedSentra}</b> | Total Debitur: <b>{totalDebitur}</b>
           </p>
