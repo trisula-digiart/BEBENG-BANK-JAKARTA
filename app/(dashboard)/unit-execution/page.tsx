@@ -5,7 +5,7 @@ import { ExecutionGrid } from "@/components/grid/ExecutionGrid";
 import { getTodayDateString } from "@/lib/utils";
 
 export default function UnitExecutionPage() {
-  // Ambil cache awal langsung agar id tidak kosong saat render pertama
+  // Ambil cache awal langsung agar data user tidak hilang saat render pertama
   const getInitialUser = () => {
     if (typeof window === "undefined") return null;
     try {
@@ -24,10 +24,10 @@ export default function UnitExecutionPage() {
     sentra_mikro: string;
     muh_name: string;
   }>({
-    id: initialUser?.unit_id || (initialUser?.unit_name ? `user-unit-${initialUser.unit_name.replace(/\s+/g, "-").toLowerCase()}` : ""),
-    kcp_name: initialUser?.unit_name || "KCP Unit",
-    sentra_mikro: initialUser?.sentra_mikro || "Sentra Mikro",
-    muh_name: initialUser?.muh_name || "Petugas Unit",
+    id: initialUser?.unit_id || "",
+    kcp_name: initialUser?.unit_name || initialUser?.kcp_name || "cikarang",
+    sentra_mikro: initialUser?.sentra_mikro || "cikarang",
+    muh_name: initialUser?.muh_name || initialUser?.username || "andi",
   });
 
   const [reportDate, setReportDate] = useState<string>(getTodayDateString());
@@ -41,18 +41,20 @@ export default function UnitExecutionPage() {
     const savedUser = localStorage.getItem("app_user");
     let userUnitName = "";
     let userSentra = "";
+    let userMuh = "";
 
     if (savedUser) {
       try {
         const u = JSON.parse(savedUser);
         if (u.unit_name) userUnitName = u.unit_name;
         if (u.sentra_mikro) userSentra = u.sentra_mikro;
+        if (u.muh_name || u.username) userMuh = u.muh_name || u.username;
       } catch (e) {
-        console.error("Failed parsing app_user");
+        console.error("Gagal membaca session app_user");
       }
     }
 
-    // 2. Fetch data unit UUID secara presisi dari API units
+    // 2. Fetch data unit resmi dari API /api/units
     fetch("/api/units")
       .then((res) => res.json())
       .then((result) => {
@@ -60,23 +62,25 @@ export default function UnitExecutionPage() {
           const matchedUnit = result.data.find(
             (unit: any) =>
               (userUnitName && unit.kcp_name?.toLowerCase().trim() === userUnitName.toLowerCase().trim()) ||
-              (userSentra && unit.sentra_mikro?.toLowerCase().trim() === userSentra.toLowerCase().trim())
+              (userSentra && unit.sentra_mikro?.toLowerCase().trim() === userSentra.toLowerCase().trim()) ||
+              (userMuh && unit.muh_name?.toLowerCase().trim() === userMuh.toLowerCase().trim())
           );
 
           if (matchedUnit) {
             setUnitInfo({
-              id: matchedUnit.id,
-              kcp_name: matchedUnit.kcp_name || userUnitName || "KCP Unit",
-              sentra_mikro: matchedUnit.sentra_mikro || userSentra || "Sentra Mikro",
-              muh_name: matchedUnit.muh_name || "Petugas Unit",
+              id: matchedUnit.id || "",
+              kcp_name: matchedUnit.kcp_name || userUnitName || "cikarang",
+              sentra_mikro: matchedUnit.sentra_mikro || userSentra || "cikarang",
+              muh_name: matchedUnit.muh_name || userMuh || "andi",
             });
-          } else if (userUnitName) {
-            setUnitInfo({
-              id: `user-unit-${userUnitName.replace(/\s+/g, "-").toLowerCase()}`,
-              kcp_name: userUnitName,
-              sentra_mikro: userSentra || "Sentra Mikro",
-              muh_name: "Petugas Unit",
-            });
+          } else {
+            // Gunakan fallback profil user yang ada tanpa mengacak nama sentra
+            setUnitInfo((prev) => ({
+              ...prev,
+              kcp_name: userUnitName || prev.kcp_name || "cikarang",
+              sentra_mikro: userSentra || prev.sentra_mikro || "cikarang",
+              muh_name: userMuh || prev.muh_name || "andi",
+            }));
           }
         }
       })
@@ -108,7 +112,7 @@ export default function UnitExecutionPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-mono text-rose-400 mb-1">
-            <span>TABEL EKSEKUSI UNIT</span> • <span>{unitInfo.kcp_name}</span> • <span className="text-emerald-400 font-bold">RETENSI BULAN BERJALAN</span>
+            <span>TABEL EKSEKUSI UNIT</span> • <span className="uppercase">{unitInfo.sentra_mikro} ({unitInfo.muh_name})</span> • <span className="text-emerald-400 font-bold">RETENSI BULAN BERJALAN</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-100">
             Data Eksekusi Debitur & Pencairan
